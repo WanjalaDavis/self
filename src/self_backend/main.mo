@@ -1,10 +1,8 @@
 import Array "mo:base/Array";
 import Blob "mo:base/Blob";
-import Buffer "mo:base/Buffer";
 import HashMap "mo:base/HashMap";
 import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
-import Option "mo:base/Option";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
 import Text "mo:base/Text";
@@ -179,7 +177,7 @@ actor UserSystem {
     };
 
     // User Login
-    public shared (msg) func login(username : Username, password : Password) : async AuthResult {
+    public shared (_msg) func login(username : Username, password : Password) : async AuthResult {
         switch (usernameMap.get(username)) {
             case (?userId) {
                 switch (credentialsMap.get(userId)) {
@@ -269,10 +267,15 @@ actor UserSystem {
 
                 // Sort by importance (descending)
                 let sorted = Array.sort(unanswered, func (a : TrainingQuestion, b : TrainingQuestion) : Order.Order {
-                    if (a.importance > b.importance) { #less };
-                    if (a.importance < b.importance) { #greater };
-                    #equal;
+                    if (a.importance > b.importance) {
+                        #less
+                    } else if (a.importance < b.importance) {
+                        #greater
+                    } else {
+                        #equal
+                    }
                 });
+
 
                 // Pick from top 3 most important (or fewer if not enough)
                 let pickCount = Nat.min(3, sorted.size());
@@ -344,7 +347,7 @@ actor UserSystem {
     };
 
     // Add Custom Training Question
-    public shared (msg) func addCustomQuestion(question : Question, category : Text.Text, importance : Nat.Nat) : async QuestionResult {
+    public shared (_msg) func addCustomQuestion(question : Question, category : Text.Text, importance : Nat.Nat) : async QuestionResult {
         let clampedImportance = Nat.min(5, Nat.max(1, importance));
         let newQuestion : TrainingQuestion = {
             id = nextQuestionId;
@@ -398,7 +401,7 @@ actor UserSystem {
     };
 
     // Chat with Deployed System
-    public shared (msg) func chatWithSystem(ownerId : UserId, message : ChatMessage) : async ChatResult {
+    public shared (_msg) func chatWithSystem(ownerId : UserId, message : ChatMessage) : async ChatResult {
         switch (usersMap.get(ownerId)) {
             case (?user) {
                 if (not user.deployed) {
@@ -423,15 +426,19 @@ actor UserSystem {
         domainParts.size() >= 2
     };
 
-    private func trimPunctuation(word : Text.Text) : Text.Text {
-        // Trim common punctuation from both ends using a predicate pattern per-character.
-        let punct : [Char.Char] = ['.' , ',' , '!' , '?' , ';' , ':' , '\'' , '"' , '(' , ')'];
-        var cleaned = word;
-        for (p in punct.vals()) {
-            cleaned := Text.trim(cleaned, func(c : Char.Char) : Bool { c == p });
-        };
-        cleaned
+private func trimPunctuation(word : Text.Text) : Text.Text {
+    // Trim common punctuation from both ends using a predicate pattern per-character.
+    let punct : [Char.Char] = ['.' , ',' , '!' , '?' , ';' , ':' ,
+                               Char.fromNat32(39 : Nat32),  // apostrophe: '
+                               Char.fromNat32(34 : Nat32),  // double quote: "
+                               '(' , ')'];
+    var cleaned = word;
+    for (p in punct.vals()) {
+        cleaned := Text.trim(cleaned, #predicate(func(c : Char.Char) : Bool { c == p }));
     };
+    cleaned
+};
+
 
     private func isCommonWord(word : Text.Text) : Bool {
         let lw = Text.toLowercase(word);
@@ -440,13 +447,16 @@ actor UserSystem {
             "are", "was", "they", "one", "all", "can", "her", "has", "there", "their",
             "what", "out", "about", "who", "get", "which", "when", "where", "how", "why"
         ];
-        Array.contains<Text.Text>(commonWords, lw, Text.equal)
+        switch (Array.find<Text.Text>(commonWords, func(w : Text.Text) : Bool { Text.equal(w, lw) })) {
+            case (?_) { true };
+            case null { false };
+        }
     };
 
     // ========== TRAIT EXTRACTION ==========
     private func extractTraits(answer : Text.Text, currentTraits : [PersonalityTrait]) : [PersonalityTrait] {
         // Tokenize on whitespace and common separators
-        let tokens = Text.tokens(answer, #predicate (func(c : Char.Char) { c == ' ' or c == '\n' or c == '\t' or c == ',' or c == '.' }));
+        let tokens = Text.tokens(answer, #predicate (func(c : Char.Char) : Bool { c == ' ' or c == '\n' or c == '\t' or c == ',' or c == '.' }));
 
         // Start from the existing immutable traits and make a mutable var-array to update counts.
         var traitsVar : [var PersonalityTrait] = Array.thaw<PersonalityTrait>(currentTraits);
@@ -457,21 +467,30 @@ actor UserSystem {
             if ((Text.size(clean) > 3) and (not isCommonWord(clean))) {
                 var found = false;
 
-                // search existing and update strength
-                for (i in Iter.range(0, Array.size(traitsVar) - 1)) {
-                    let existing = traitsVar[i];
-                    if (Text.equal(existing.name, clean)) {
-                        Array.set(traitsVar, i, {
-                            name = existing.name;
-                            strength = Nat.min(10, existing.strength + 1)
-                        });
-                        found := true;
-                        break;
+                // search existing and update strength (guard empty case to avoid underflow)
+
+                let frozenTraits = Array.freeze(traitsVar);
+                let tvSize = Array.size(frozenTraits);
+
+                if (tvSize > 0) {
+                    label traitLoop for (i in Iter.range(0, tvSize - 1)) {
+                        let existing = traitsVar[i];
+                        if (Text.equal(existing.name, clean)) {
+                            // update in-place on the mutable array
+                            traitsVar[i] := {
+                                name = existing.name;
+                                strength = Nat.min(10, existing.strength + 1)
+                            };
+                            found := true;
+                            break traitLoop;
+                        };
                     };
                 };
 
+
+
                 if (not found) {
-                    // append a new trait (mutable arrays can't change length directly, so freeze/append/thaw)
+                    // append a new trait
                     traitsVar := Array.thaw<PersonalityTrait>(Array.append<PersonalityTrait>(Array.freeze(traitsVar), [{ name = clean; strength = 5 }]));
                 };
             };
@@ -489,12 +508,10 @@ actor UserSystem {
         );
 
         let top10Count = Nat.min(10, sortedByStrength.size());
-        let top10 = Array.tabulate<PersonalityTrait>(
+        Array.tabulate<PersonalityTrait>(
             top10Count,
             func(i : Nat.Nat) : PersonalityTrait { sortedByStrength[i] }
-        );
-
-        top10
+        )
     };
 
     // ========== ADVANCED RESPONSE GENERATOR ==========
