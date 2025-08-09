@@ -14,5 +14,9 @@
   "type": "module",
   "workspaces": [
     "src/self_frontend"
-  ]
+  ],
+  "dependencies": {
+    "@dfinity/agent": "^3.2.0",
+    "@dfinity/auth-client": "^3.2.0"
+  }
 }
