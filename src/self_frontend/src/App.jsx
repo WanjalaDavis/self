@@ -1,20 +1,31 @@
-// Cleaned App.jsx — formatting and minor punctuation fixes only
-// No feature changes were made — just consistent semicolons, indentation,
-// and small safety guards where accessing nested properties in render.
-
-import React, { useState, useEffect, useRef } from "react";
+// App.jsx — FULL file with Ultimate UI
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Principal } from "@dfinity/principal";
 import { self_backend } from "../../declarations/self_backend";
 import "./index.scss";
 
-// Helper functions with BigInt support
+// ==================== UTILITIES ====================
 const isOk = (res) => res && Object.prototype.hasOwnProperty.call(res, "ok");
 const getErr = (res) => (res && res.err) || (res && res["err"]) || null;
 const getOk = (res) => (res && res.ok) || (res && res["ok"]) || null;
 
 function arrayBufferToBase64(buffer) {
   if (!buffer) return null;
-  const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  if (typeof buffer === "string" && buffer.startsWith("data:")) return buffer;
+  let u8;
+  if (buffer instanceof Uint8Array) {
+    u8 = buffer;
+  } else if (buffer.buffer && buffer.byteLength) {
+    u8 = new Uint8Array(buffer.buffer || buffer);
+  } else if (Array.isArray(buffer)) {
+    u8 = new Uint8Array(buffer);
+  } else {
+    try {
+      u8 = new Uint8Array(Object.values(buffer));
+    } catch (e) {
+      return null;
+    }
+  }
   let binary = "";
   for (let i = 0; i < u8.length; i++) {
     binary += String.fromCharCode(u8[i]);
@@ -22,42 +33,134 @@ function arrayBufferToBase64(buffer) {
   return window.btoa(binary);
 }
 
+/* Avatar generation system */
+function initialsFromName(name = "") {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "DC";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function hashToColors(str = "") {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue1 = Math.abs(hash % 360);
+  const hue2 = (hue1 + 150 + Math.abs(hash % 60)) % 360;
+  const sat1 = 70 + (hash % 20);
+  const sat2 = 65 + ((hash * 3) % 20);
+  const light1 = 55 + (hash % 12);
+  const light2 = 45 + ((hash * 7) % 12);
+  return [
+    `hsl(${hue1}, ${sat1}%, ${light1}%)`,
+    `hsl(${hue2}, ${sat2}%, ${light2}%)`,
+  ];
+}
+
+function generateShape(hash, size) {
+  const shapeType = Math.abs(hash) % 5;
+  const padding = Math.max(4, Math.round(size * 0.05));
+  const innerSize = size - padding * 2;
+  switch (shapeType) {
+    case 0:
+      return `<circle cx="${size / 2}" cy="${size / 2}" r="${innerSize / 2}" />`;
+    case 1:
+      return `<rect x="${padding}" y="${padding}" rx="${Math.round(size / 8)}" width="${innerSize}" height="${innerSize}" />`;
+    case 2:
+      return `<polygon points="${size / 2},${padding} ${size - padding},${size - padding} ${padding},${size - padding}" />`;
+    case 3:
+      return `<polygon points="${size / 2},${padding} ${size - padding},${size / 3} ${size - padding},${size * 2 / 3} ${size / 2},${size - padding} ${padding},${size * 2 / 3} ${padding},${size / 3}" />`;
+    default: {
+      const points = 6;
+      const blob = [];
+      for (let i = 0; i < points; i++) {
+        const angle = (i * 2 * Math.PI) / points;
+        const r = (innerSize / 2) * (0.75 + 0.2 * Math.sin(hash + i));
+        const x = size / 2 + r * Math.cos(angle);
+        const y = size / 2 + r * Math.sin(angle);
+        blob.push(`${x},${y}`);
+      }
+      return `<polygon points="${blob.join(" ")}" />`;
+    }
+  }
+}
+
+function generateAvatarDataUrl(name = "", size = 256) {
+  const initials = initialsFromName(name || "");
+  const [c1, c2] = hashToColors(name || initials);
+  const hash = Array.from((name || initials)).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const shape = generateShape(hash, size);
+  const fontSize = Math.round(size / (initials.length > 1 ? 2.8 : 3.8));
+  const svg = `
+    <svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 ${size} ${size}'>
+      <defs>
+        <linearGradient id='g' x1='0%' y1='0%' x2='100%' y2='100%'>
+          <stop offset='0%' stop-color='${c1}' />
+          <stop offset='100%' stop-color='${c2}' />
+        </linearGradient>
+      </defs>
+      <rect width='100%' height='100%' fill='#f6f7fb' />
+      ${shape.replace(">", ` fill="url(#g)" />`)}
+      <text x='50%' y='50%' text-anchor='middle' dominant-baseline='middle' 
+            font-family='system-ui, -apple-system, "Segoe UI", Roboto, Arial' 
+            font-size='${fontSize}' font-weight='700' fill='rgba(255,255,255,0.95)'>
+        ${initials}
+      </text>
+    </svg>
+  `;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+const profilePicToDataUrl = (profilePic, fallbackName = "") => {
+  if (!profilePic) return generateAvatarDataUrl(fallbackName || "User");
+  if (typeof profilePic === "string") {
+    if (profilePic.startsWith("data:")) return profilePic;
+    if (/^[A-Za-z0-9+/=]+$/.test(profilePic)) return `data:image/png;base64,${profilePic}`;
+  }
+  try {
+    const base64 = arrayBufferToBase64(profilePic);
+    return base64 ? `data:image/png;base64,${base64}` : generateAvatarDataUrl(fallbackName || "User");
+  } catch (e) {
+    console.warn("profilePicToDataUrl failed:", e);
+    return generateAvatarDataUrl(fallbackName || "User");
+  }
+};
+
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
-
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
+    const t = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(t);
   }, [value, delay]);
-
   return debouncedValue;
 }
 
-// Helper to safely convert BigInt to Number for display purposes
 const safeNumber = (value) => {
-  if (typeof value === "bigint") {
-    return Number(value);
-  }
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "number") return value;
   return value;
 };
 
+// ==================== MAIN APPLICATION ====================
 export default function App() {
-  // Auth & user state
+  // --- Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [authMessage, setAuthMessage] = useState("");
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  // Forms state
-  const [regForm, setRegForm] = useState({ username: "", email: "", password: "" });
-  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  // --- Loading states
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [authOperationLoading, setAuthOperationLoading] = useState(false);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [deployLoading, setDeployLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [addingQuestionLoading, setAddingQuestionLoading] = useState(false);
+  const [submitAnswerLoading, setSubmitAnswerLoading] = useState(false);
 
-  // Training state
+  // --- Training state
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(null);
   const [answerText, setAnswerText] = useState("");
@@ -66,96 +169,107 @@ export default function App() {
   const [customImportance, setCustomImportance] = useState(3);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const debouncedSearchTerm = useDebounce(searchTerm, 450);
 
-  // Systems state
+  // --- Systems/chat state
   const [deployedSystems, setDeployedSystems] = useState([]);
   const [selectedSystem, setSelectedSystem] = useState(null);
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
-
-  // Profile settings state
-  const [bioText, setBioText] = useState("");
-  const [profilePicFile, setProfilePicFile] = useState(null);
-
-  // UI state
-  const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef(null);
 
-  // Initialize app
+  // --- Profile settings
+  const [bioText, setBioText] = useState("");
+  const [profilePicFile, setProfilePicFile] = useState(null);
+  const [profilePreviewUrl, setProfilePreviewUrl] = useState(null);
+
+  // Profile picture preview effect
   useEffect(() => {
+    if (!profilePicFile) {
+      setProfilePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(profilePicFile);
+    setProfilePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [profilePicFile]);
+
+  // Computed profile image
+  const profilePicSrc = useMemo(() => {
+    if (profilePreviewUrl) return profilePreviewUrl;
+    return profilePicToDataUrl(userProfile?.profilePic, userProfile?.username || "User");
+  }, [profilePreviewUrl, userProfile]);
+
+  // ==================== EFFECTS ====================
+  useEffect(() => {
+    let mounted = true;
     const bootstrap = async () => {
-      setIsLoading(true);
+      setInitialLoading(true);
       try {
         const res = await self_backend.getDashboard();
         if (isOk(res)) {
           const user = getOk(res);
+          if (!mounted) return;
           setUserProfile(user);
           setIsAuthenticated(true);
           setBioText(user?.bio || "");
         }
+        await refreshQuestions();
+        await fetchDeployedSystems();
       } catch (err) {
-        console.warn("bootstrap dashboard failed", err);
+        console.warn("bootstrap failed", err);
+      } finally {
+        if (mounted) setInitialLoading(false);
       }
-
-      await refreshQuestions();
-      await fetchDeployedSystems();
-      setIsLoading(false);
     };
-
     bootstrap();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { mounted = false; };
   }, []);
 
-  // Auto-scroll chat to bottom
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    chatEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [chatHistory]);
 
-  // ========== AUTHENTICATION HANDLERS ==========
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setAuthMessage("");
-    setIsLoading(true);
+  // ==================== AUTHENTICATION ====================
+  const registerUser = useCallback(async ({ username, email, password }) => {
     try {
-      const res = await self_backend.register(regForm.username, regForm.email, regForm.password);
+      const res = await self_backend.register(username, email, password);
       if (isOk(res)) {
         const user = getOk(res);
         setUserProfile(user);
         setIsAuthenticated(true);
-        setAuthMessage("Registered and logged in.");
+        setBioText(user?.bio || "");
+        setAuthMessage("Registered and logged in successfully!");
+        return { ok: true, user };
       } else {
-        setAuthMessage(getErr(res) || "Registration failed");
+        const err = getErr(res) || "Registration failed";
+        return { ok: false, err };
       }
-    } catch (err) {
-      console.error(err);
-      setAuthMessage(String(err));
-    } finally {
-      setIsLoading(false);
+    } catch (e) {
+      console.error("registerUser error", e);
+      return { ok: false, err: "An unexpected error occurred during registration." };
     }
-  };
+  }, []);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setAuthMessage("");
-    setIsLoading(true);
+  const loginUser = useCallback(async ({ username, password }) => {
     try {
-      const res = await self_backend.login(loginForm.username, loginForm.password);
+      const res = await self_backend.login(username, password);
       if (isOk(res)) {
         const user = getOk(res);
         setUserProfile(user);
         setIsAuthenticated(true);
-        setAuthMessage("Login successful");
+        setBioText(user?.bio || "");
+        setAuthMessage("Login successful! Welcome back.");
+        return { ok: true, user };
       } else {
-        setAuthMessage(getErr(res) || "Login failed");
+        const err = getErr(res) || "Login failed";
+        return { ok: false, err };
       }
-    } catch (err) {
-      console.error(err);
-      setAuthMessage(String(err));
-    } finally {
-      setIsLoading(false);
+    } catch (e) {
+      console.error("loginUser error", e);
+      return { ok: false, err: "An error occurred during login." };
     }
-  };
+  }, []);
 
   const handleLogout = () => {
     setUserProfile(null);
@@ -164,24 +278,23 @@ export default function App() {
     setCurrentQuestion(null);
     setAnswerText("");
     setActiveTab("dashboard");
+    setChatHistory([]);
+    setSelectedSystem(null);
   };
 
-  // ========== PROFILE HANDLERS ==========
-  const refreshDashboard = async () => {
-    setIsLoading(true);
+  // ==================== PROFILE ====================
+  const refreshDashboard = useCallback(async () => {
     try {
       const res = await self_backend.getDashboard();
       if (isOk(res)) {
         setUserProfile(getOk(res));
       } else {
-        console.warn("getDashboard err", getErr(res));
+        console.warn("refreshDashboard warn", getErr(res));
       }
     } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
+      console.error("refreshDashboard error", err);
     }
-  };
+  }, []);
 
   const handleProfilePicChange = (e) => {
     const f = e.target.files && e.target.files[0];
@@ -194,7 +307,7 @@ export default function App() {
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
+    setProfileLoading(true);
     try {
       let pic = null;
       if (profilePicFile) {
@@ -204,32 +317,21 @@ export default function App() {
       const res = await self_backend.updateProfile(bioText ? bioText : null, pic ? pic : null);
       if (isOk(res)) {
         await refreshDashboard();
-        alert("Profile updated successfully");
+        setAuthMessage("Profile updated successfully!");
       } else {
-        alert(getErr(res) || "Profile update failed");
+        setAuthMessage(getErr(res) || "Profile update failed.");
       }
     } catch (err) {
-      console.error(err);
-      alert(String(err));
+      console.error("handleUpdateProfile error", err);
+      setAuthMessage("Failed to update profile. Please try again.");
     } finally {
-      setIsLoading(false);
+      setProfileLoading(false);
     }
   };
 
-  const profilePicToDataUrl = (profilePic) => {
-    if (!profilePic) return null;
-    try {
-      const base64 = arrayBufferToBase64(profilePic);
-      return base64 ? `data:image/png;base64,${base64}` : null;
-    } catch (e) {
-      console.warn("profilePicToDataUrl failed", e);
-      return null;
-    }
-  };
-
-  // ========== TRAINING HANDLERS ==========
-  const refreshQuestions = async () => {
-    setIsLoading(true);
+  // ==================== TRAINING ====================
+  const refreshQuestions = useCallback(async () => {
+    setQuestionsLoading(true);
     try {
       const res = await self_backend.getQuestions();
       if (isOk(res)) {
@@ -240,108 +342,116 @@ export default function App() {
         console.warn("getQuestions unexpected", res);
       }
     } catch (err) {
-      console.error(err);
+      console.error("refreshQuestions error", err);
     } finally {
-      setIsLoading(false);
+      setQuestionsLoading(false);
     }
-  };
+  }, []);
 
-  const getNextQuestion = async () => {
-    setIsLoading(true);
+  const getNextQuestion = useCallback(async () => {
+    setQuestionsLoading(true);
     try {
       const res = await self_backend.getNextQuestion();
       if (isOk(res)) {
         setCurrentQuestion(getOk(res));
         setAnswerText("");
       } else {
-        alert(getErr(res) || "No next question available");
+        setAuthMessage(getErr(res) || "No questions available. Try adding some!");
       }
     } catch (err) {
-      console.error(err);
-      alert(String(err));
+      console.error("getNextQuestion error", err);
+      setAuthMessage("Failed to get next question.");
     } finally {
-      setIsLoading(false);
+      setQuestionsLoading(false);
     }
-  };
+  }, []);
 
   const submitAnswer = async (e) => {
     e.preventDefault();
-    if (!currentQuestion) return alert("No question selected");
-    setIsLoading(true);
+    if (!currentQuestion) {
+      setAuthMessage("Please select a question first.");
+      return;
+    }
+    setSubmitAnswerLoading(true);
     try {
       const res = await self_backend.submitAnswer(safeNumber(currentQuestion.id), answerText);
       if (isOk(res)) {
-        alert("Answer submitted successfully");
+        setAuthMessage("Answer submitted successfully!");
         await refreshDashboard();
         setCurrentQuestion(null);
       } else {
-        alert(getErr(res) || "Submit failed");
+        setAuthMessage(getErr(res) || "Failed to submit answer.");
       }
     } catch (err) {
-      console.error(err);
-      alert(String(err));
+      console.error("submitAnswer error", err);
+      setAuthMessage("Error submitting answer.");
     } finally {
-      setIsLoading(false);
+      setSubmitAnswerLoading(false);
     }
   };
 
   const handleAddCustomQuestion = async (e) => {
     e.preventDefault();
-    if (!customQuestionText.trim()) return alert("Question text is required");
-    setIsLoading(true);
+    if (!customQuestionText.trim()) {
+      setAuthMessage("Question text is required.");
+      return;
+    }
+    setAddingQuestionLoading(true);
     try {
-      const res = await self_backend.addCustomQuestion(customQuestionText, customCategory, Number(customImportance));
+      const res = await self_backend.addCustomQuestion(
+        customQuestionText,
+        customCategory,
+        Number(customImportance)
+      );
       if (isOk(res)) {
-        alert("Custom question added successfully");
+        setAuthMessage("Custom question added successfully!");
         setCustomQuestionText("");
         setCustomCategory("");
         setCustomImportance(3);
         await refreshQuestions();
       } else {
-        alert(getErr(res) || "Failed to add custom question");
+        setAuthMessage(getErr(res) || "Failed to add custom question.");
       }
     } catch (err) {
-      console.error(err);
-      alert("Error adding question: " + (err?.message || String(err)));
+      console.error("handleAddCustomQuestion error", err);
+      setAuthMessage("Error adding question.");
     } finally {
-      setIsLoading(false);
+      setAddingQuestionLoading(false);
     }
   };
 
-  // Filter questions based on selected category and search term
   const filteredQuestions = questions.filter((q) => {
     const matchesCategory = selectedCategory === "all" || q.category === selectedCategory;
-    const matchesSearch = (q.question || "").toLowerCase().includes((debouncedSearchTerm || "").toLowerCase()) ||
+    const matchesSearch =
+      (q.question || "").toLowerCase().includes((debouncedSearchTerm || "").toLowerCase()) ||
       (q.category && q.category.toLowerCase().includes((debouncedSearchTerm || "").toLowerCase()));
     return matchesCategory && matchesSearch;
   });
 
-  // Get unique categories for filter dropdown
-  const categories = ["all", ...new Set(questions.map((q) => q.category).filter(Boolean))];
+  const categories = useMemo(() => ["all", ...new Set(questions.map((q) => q.category).filter(Boolean))], [questions]);
 
-  // ========== SYSTEMS HANDLERS ==========
+  // ==================== SYSTEMS ====================
   const handleDeploy = async () => {
     if (!window.confirm("Deploying your system will make it available to others. Continue?")) return;
-    setIsLoading(true);
+    setDeployLoading(true);
     try {
       const res = await self_backend.deploySystem();
       if (isOk(res)) {
-        alert("System deployed successfully");
+        setAuthMessage("System deployed successfully!");
         await refreshDashboard();
         await fetchDeployedSystems();
       } else {
-        alert(getErr(res) || "Deploy failed");
+        setAuthMessage(getErr(res) || "Deployment failed.");
       }
     } catch (err) {
-      console.error(err);
-      alert(String(err));
+      console.error("handleDeploy error", err);
+      setAuthMessage("Error deploying system.");
     } finally {
-      setIsLoading(false);
+      setDeployLoading(false);
     }
   };
 
-  const fetchDeployedSystems = async () => {
-    setIsLoading(true);
+  const fetchDeployedSystems = useCallback(async () => {
     try {
       const res = await self_backend.getDeployedSystems();
       if (Array.isArray(res)) {
@@ -352,11 +462,9 @@ export default function App() {
         console.warn("getDeployedSystems unexpected", res);
       }
     } catch (err) {
-      console.error(err);
-    } finally {
-      setIsLoading(false);
+      console.error("fetchDeployedSystems error", err);
     }
-  };
+  }, []);
 
   const pickSystem = (system) => {
     setSelectedSystem(system);
@@ -366,17 +474,23 @@ export default function App() {
 
   const sendChat = async (e) => {
     e.preventDefault();
-    if (!selectedSystem) return alert("Select a deployed system first");
-    if (!chatMessage.trim()) return alert("Please enter a message");
+    if (!selectedSystem) {
+      setAuthMessage("Please select a system first.");
+      return;
+    }
+    if (!chatMessage.trim()) {
+      setAuthMessage("Please enter a message.");
+      return;
+    }
 
-    setIsLoading(true);
+    setChatLoading(true);
     try {
       let owner = selectedSystem.ownerId;
       if (typeof owner === "string") {
         try {
           owner = Principal.fromText(owner);
         } catch (e) {
-          // keep as string if cannot parse
+          // leave as string if not parsable
         }
       }
 
@@ -385,261 +499,462 @@ export default function App() {
         const reply = getOk(res);
         setChatHistory((h) => [
           ...h,
-          { fromMe: true, text: chatMessage },
-          { fromMe: false, text: reply },
+          { fromMe: true, text: chatMessage, timestamp: new Date().toISOString() },
+          { fromMe: false, text: reply, timestamp: new Date().toISOString() },
         ]);
         setChatMessage("");
       } else {
-        alert(getErr(res) || "Chat failed");
+        setAuthMessage(getErr(res) || "Chat failed.");
       }
     } catch (err) {
-      console.error(err);
-      alert(String(err));
+      console.error("sendChat error", err);
+      setAuthMessage("Error sending message.");
     } finally {
-      setIsLoading(false);
+      setChatLoading(false);
     }
   };
 
-  // ========== COMPONENTS ==========
-  const AuthModal = () => (
-    <div className="modal-overlay">
-      <div className="auth-modal">
-        <div className="auth-header">
-          <h1>Welcome to Digital Consciousness</h1>
-          <p className="subtitle">Create your unique AI personality</p>
-        </div>
+  // ==================== UI COMPONENTS ====================
+  function AuthModal({ onRegister, onLogin }) {
+    const [localTab, setLocalTab] = useState("register");
+    const [regValues, setRegValues] = useState({ username: "", email: "", password: "" });
+    const [loginValues, setLoginValues] = useState({ username: "", password: "" });
+    const [submitting, setSubmitting] = useState(false);
+    const [localMessage, setLocalMessage] = useState("");
 
-        <div className="auth-tabs">
-          <div className="tab active">
-            <h2>Register</h2>
-            <form onSubmit={handleRegister} className="form">
-              <div className="form-group">
-                <label>Username</label>
-                <input
-                  value={regForm.username}
-                  onChange={(e) => setRegForm({ ...regForm, username: e.target.value })}
-                  placeholder="Choose a username"
-                  required
-                  minLength={3}
-                />
-              </div>
+    const submitRegister = async (ev) => {
+      ev.preventDefault();
+      setLocalMessage("");
+      setSubmitting(true);
+      try {
+        const res = await onRegister(regValues);
+        if (!res.ok) {
+          setLocalMessage(res.err || "Registration failed");
+        }
+      } catch (err) {
+        console.error("AuthModal.register error", err);
+        setLocalMessage("Registration error");
+      } finally {
+        setSubmitting(false);
+      }
+    };
 
-              <div className="form-group">
-                <label>Email</label>
-                <input
-                  value={regForm.email}
-                  onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
-                  placeholder="Your email address"
-                  type="email"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Password</label>
-                <input
-                  value={regForm.password}
-                  onChange={(e) => setRegForm({ ...regForm, password: e.target.value })}
-                  placeholder="Create a password"
-                  type="password"
-                  required
-                  minLength={8}
-                />
-              </div>
-
-              <button className="btn primary" type="submit" disabled={isLoading}>
-                {isLoading ? "Registering..." : "Register"}
-              </button>
-            </form>
-          </div>
-
-          <div className="tab">
-            <h2>Login</h2>
-            <form onSubmit={handleLogin} className="form">
-              <div className="form-group">
-                <label>Username</label>
-                <input
-                  value={loginForm.username}
-                  onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                  placeholder="Your username"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Password</label>
-                <input
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  placeholder="Your password"
-                  type="password"
-                  required
-                />
-              </div>
-
-              <button className="btn primary" type="submit" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {authMessage && (
-          <div className={`auth-message ${authMessage.includes("success") ? "success" : "error"}`}>
-            {authMessage}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const DashboardTab = () => (
-    <div className="dashboard-tab">
-      <h2>Your Digital Consciousness</h2>
-
-      <div className="profile-summary">
-        <div className="profile-pic">
-          {userProfile?.profilePic ? (
-            <img alt="profile" src={profilePicToDataUrl(userProfile.profilePic)} />
-          ) : (
-            <div className="placeholder">
-              <i className="fas fa-user" />
-            </div>
-          )}
-        </div>
-
-        <div className="profile-info">
-          <h3>{userProfile?.username}</h3>
-          <p className="bio">{userProfile?.bio || "No bio yet"}</p>
-          <div className="stats">
-            <div className="stat-item">
-              <i className="fas fa-brain" />
-              <span>{safeNumber(userProfile?.knowledgeBase?.length) || 0} answers</span>
-            </div>
-            <div className="stat-item">
-              <i className="fas fa-robot" />
-              <span>{userProfile?.deployed ? "System Deployed" : "System Not Deployed"}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="dashboard-actions">
-        <button className="btn primary" onClick={getNextQuestion} disabled={isLoading}>
-          <i className="fas fa-question-circle" /> Train with Next Question
-        </button>
-        <button
-          className={`btn ${userProfile?.deployed ? "secondary" : "primary"}`}
-          onClick={handleDeploy}
-          disabled={userProfile?.deployed || isLoading || safeNumber(userProfile?.knowledgeBase?.length) < 10}
-        >
-          <i className="fas fa-rocket" />
-          {userProfile?.deployed
-            ? "Already Deployed"
-            : safeNumber(userProfile?.knowledgeBase?.length) < 10
-            ? "Need 10 Answers"
-            : "Deploy Your System"}
-        </button>
-      </div>
-
-      <div className="dashboard-sections">
-        <div className="section card">
-          <h3>
-            <i className="fas fa-user-tag" /> Personality Traits
-          </h3>
-          {userProfile?.traits?.length > 0 ? (
-            <ul className="traits-list">
-              {userProfile.traits.map((t, idx) => (
-                <li key={idx}>
-                  <div className="trait-name">{t.name}</div>
-                  <div className="trait-strength">
-                    <div className="strength-bar" style={{ width: `${safeNumber(t.strength) * 10}%` }} />
-                    <span>{safeNumber(t.strength)}/10</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="empty-state">No traits yet. Answer personality questions to develop your traits.</p>
-          )}
-        </div>
-
-        <div className="section card">
-          <h3>
-            <i className="fas fa-memory" /> Key Memories
-          </h3>
-          {userProfile?.memories?.length > 0 ? (
-            <ul className="memories-list">
-              {userProfile.memories.map((m, i) => (
-                <li key={i} className="memory-item">
-                  <div className="memory-content">"{m.content}"</div>
-                  <div className="memory-weight">
-                    Emotional weight:
-                    <span className={`weight-${Math.min(5, Math.ceil(safeNumber(m.emotionalWeight) / 2))}`}>
-                      {safeNumber(m.emotionalWeight)}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="empty-state">No significant memories yet. Answer important questions to create memories.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  const TrainingTab = () => {
-    // Helper function to safely render importance stars
-    const renderImportanceStars = (importance) => {
-      const numStars = safeNumber(importance);
-      return "★".repeat(Math.max(0, Math.min(5, numStars)));
+    const submitLogin = async (ev) => {
+      ev.preventDefault();
+      setLocalMessage("");
+      setSubmitting(true);
+      try {
+        const res = await onLogin(loginValues);
+        if (!res.ok) {
+          setLocalMessage(res.err || "Login failed");
+        }
+      } catch (err) {
+        console.error("AuthModal.login error", err);
+        setLocalMessage("Login error");
+      } finally {
+        setSubmitting(false);
+      }
     };
 
     return (
-      <div className="training-tab">
+      <div className="auth-modal-container">
+        <div className="auth-modal-glass">
+          <div className="auth-modal-content">
+            <div className="auth-modal-header">
+              <div className="auth-logo">
+                <img 
+                  src={generateAvatarDataUrl("Digital Consciousness", 80)} 
+                  alt="logo" 
+                  className="auth-logo-image"
+                />
+                <div className="auth-logo-text">
+                  <h1>EchoSoul- MindVault</h1>
+                  <p className="auth-subtitle">Shape your AI personality</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="auth-tabs-container">
+              <div className="auth-tabs-header">
+                <button 
+                  className={`auth-tab ${localTab === "register" ? "active" : ""}`}
+                  onClick={() => setLocalTab("register")}
+                >
+                  Create Account
+                </button>
+                <button 
+                  className={`auth-tab ${localTab === "login" ? "active" : ""}`}
+                  onClick={() => setLocalTab("login")}
+                >
+                  Sign In
+                </button>
+              </div>
+
+              <div className="auth-form-container">
+                {localTab === "register" ? (
+                  <form onSubmit={submitRegister} className="auth-form">
+                    <div className="form-group floating">
+                      <input
+                        id="reg-username"
+                        type="text"
+                        value={regValues.username}
+                        onChange={(e) => setRegValues((s) => ({ ...s, username: e.target.value }))}
+                        required
+                        minLength={3}
+                      />
+                      <label htmlFor="reg-username">Username</label>
+                    </div>
+
+                    <div className="form-group floating">
+                      <input
+                        id="reg-email"
+                        type="email"
+                        value={regValues.email}
+                        onChange={(e) => setRegValues((s) => ({ ...s, email: e.target.value }))}
+                        required
+                      />
+                      <label htmlFor="reg-email">Email</label>
+                    </div>
+
+                    <div className="form-group floating">
+                      <input
+                        id="reg-password"
+                        type="password"
+                        value={regValues.password}
+                        onChange={(e) => setRegValues((s) => ({ ...s, password: e.target.value }))}
+                        required
+                        minLength={8}
+                      />
+                      <label htmlFor="reg-password">Password</label>
+                    </div>
+
+                    <button type="submit" className="auth-submit-btn" disabled={submitting}>
+                      {submitting ? (
+                        <span className="auth-spinner"></span>
+                      ) : (
+                        "Create Account"
+                      )}
+                    </button>
+                  </form>
+                ) : (
+                  <form onSubmit={submitLogin} className="auth-form">
+                    <div className="form-group floating">
+                      <input
+                        id="login-username"
+                        type="text"
+                        value={loginValues.username}
+                        onChange={(e) => setLoginValues((s) => ({ ...s, username: e.target.value }))}
+                        required
+                      />
+                      <label htmlFor="login-username">Username</label>
+                    </div>
+
+                    <div className="form-group floating">
+                      <input
+                        id="login-password"
+                        type="password"
+                        value={loginValues.password}
+                        onChange={(e) => setLoginValues((s) => ({ ...s, password: e.target.value }))}
+                        required
+                      />
+                      <label htmlFor="login-password">Password</label>
+                    </div>
+
+                    <button type="submit" className="auth-submit-btn" disabled={submitting}>
+                      {submitting ? (
+                        <span className="auth-spinner"></span>
+                      ) : (
+                        "Sign In"
+                      )}
+                    </button>
+                  </form>
+                )}
+
+                {(localMessage || authMessage) && (
+                  <div className={`auth-message ${localMessage.includes("success") || authMessage.includes("success") ? "success" : "error"}`}>
+                    {localMessage || authMessage}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== TAB COMPONENTS ====================
+  const DashboardTab = () => {
+    return (
+      <div className="dashboard-container">
+        <div className="dashboard-header">
+          <h2 className="dashboard-title">Your Digital Consciousness</h2>
+          <div className="dashboard-stats">
+            <div className="stat-card">
+              <div className="stat-icon knowledge">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+                </svg>
+              </div>
+              <div className="stat-content">
+                <span className="stat-value">{safeNumber(userProfile?.knowledgeBase?.length) || 0}</span>
+                <span className="stat-label">Knowledge Items</span>
+              </div>
+            </div>
+            
+            <div className="stat-card">
+              <div className="stat-icon deployment">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 2L4 7v10l8 5 8-5V7L12 2m0 2.5L18 9v6l-6 3.5L6 15V9l6-3.5M12 6L6 9l6 3 6-3-6-3z"/>
+                </svg>
+              </div>
+              <div className="stat-content">
+                <span className="stat-value">{userProfile?.deployed ? "Active" : "Inactive"}</span>
+                <span className="stat-label">Deployment Status</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="profile-card">
+          <div className="profile-avatar-container">
+            <div className="profile-avatar">
+              <img src={profilePicSrc} alt="Profile" className="avatar-image" />
+              <label className="avatar-edit">
+                <input type="file" accept="image/*" onChange={handleProfilePicChange} />
+                <svg viewBox="0 0 24 24">
+                  <path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/>
+                </svg>
+              </label>
+            </div>
+          </div>
+
+          <div className="profile-info">
+            <h3 className="profile-name">{userProfile?.username}</h3>
+            <p className="profile-bio">{userProfile?.bio || "No bio yet. Add one in Settings."}</p>
+            
+            <div className="profile-actions">
+              <button 
+                className="action-btn primary" 
+                onClick={getNextQuestion} 
+                disabled={questionsLoading}
+              >
+                <svg viewBox="0 0 24 24" className="btn-icon">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                </svg>
+                Train Now
+              </button>
+
+              <button
+                className={`action-btn ${userProfile?.deployed ? "secondary" : "primary"}`}
+                onClick={handleDeploy}
+                disabled={userProfile?.deployed || deployLoading || safeNumber(userProfile?.knowledgeBase?.length) < 10}
+                title={userProfile?.deployed ? "Already deployed" : undefined}
+              >
+                <svg viewBox="0 0 24 24" className="btn-icon">
+                  <path d="M13 19v-4h3l-4-5-4 5h3v4h2m3-15v3h-1V5H9v2H8V4h8m-.9 15.5c0 .28.22.5.5.5s.5-.22.5-.5-.22-.5-.5-.5-.5.22-.5.5M13 10h-2V9h2v1m3-3h-8v11h8V7z"/>
+                </svg>
+                {userProfile?.deployed
+                  ? "Deployed"
+                  : safeNumber(userProfile?.knowledgeBase?.length) < 10
+                    ? "Need 10 Answers"
+                    : "Deploy System"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="dashboard-grid">
+          <div className="traits-card">
+            <div className="card-header">
+              <h3 className="card-title">
+                <svg viewBox="0 0 24 24" className="card-icon">
+                  <path d="M12 3a9 9 0 0 0-9 9c0 1.5.4 3 1.1 4.3.1.2.1.5 0 .8-.1.2-.3.4-.5.5l-2.5 2.5c-.4.4-.4 1 0 1.4.4.4 1 .4 1.4 0l2.5-2.5c.2-.2.4-.3.5-.5.3-.1.5-.1.8 0 1.3.8 2.8 1.1 4.3 1.1 5 0 9-4 9-9s-4-9-9-9m0 4c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m-4 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m8 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1M7 12c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m10 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m-4 4c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1z"/>
+                </svg>
+                Personality Traits
+              </h3>
+            </div>
+            
+            {userProfile?.traits?.length > 0 ? (
+              <div className="traits-grid">
+                {userProfile.traits.map((t, idx) => (
+                  <div key={idx} className="trait-item">
+                    <div className="trait-header">
+                      <span className="trait-name">{t.name}</span>
+                      <span className="trait-value">{safeNumber(t.strength)}/10</span>
+                    </div>
+                    <div className="progress-container">
+                      <div 
+                        className="progress-fill" 
+                        style={{ width: `${safeNumber(t.strength) * 10}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <svg viewBox="0 0 24 24" className="empty-icon">
+                  <path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                </svg>
+                <p>Answer personality questions to develop your traits.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="memories-card">
+            <div className="card-header">
+              <h3 className="card-title">
+                <svg viewBox="0 0 24 24" className="card-icon">
+                  <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"/>
+                </svg>
+                Key Memories
+              </h3>
+            </div>
+            
+            {userProfile?.memories?.length > 0 ? (
+              <div className="memories-list">
+                {userProfile.memories.slice(0, 3).map((m, i) => (
+                  <div key={i} className="memory-item">
+                    <div className="memory-content">"{m.content}"</div>
+                    <div className="memory-meta">
+                      <span className={`memory-intensity intensity-${Math.min(5, Math.ceil(safeNumber(m.emotionalWeight) / 2))}`}>
+                        <svg viewBox="0 0 24 24">
+                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                        </svg>
+                        {safeNumber(m.emotionalWeight)} intensity
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <svg viewBox="0 0 24 24" className="empty-icon">
+                  <path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                </svg>
+                <p>Answer important questions to create memories.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const TrainingTab = () => {
+    const renderImportanceStars = (importance) => {
+      const numStars = safeNumber(importance) || 0;
+      return (
+        <span className="stars">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <svg
+              key={i}
+              viewBox="0 0 24 24"
+              className={`star ${i < numStars ? "filled" : ""}`}
+            >
+              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/>
+            </svg>
+          ))}
+        </span>
+      );
+    };
+
+    return (
+      <div className="training-container">
         <div className="training-header">
-          <h2>
-            <i className="fas fa-graduation-cap" /> Knowledge Training
+          <h2 className="training-title">
+            <svg viewBox="0 0 24 24" className="title-icon">
+              <path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+            </svg>
+            Knowledge Training
           </h2>
+          
           <div className="training-controls">
-            <button className="btn secondary" onClick={refreshQuestions} disabled={isLoading}>
-              <i className="fas fa-sync-alt" /> Refresh
-            </button>
-            <button className="btn primary" onClick={getNextQuestion} disabled={isLoading}>
-              <i className="fas fa-random" /> Random Question
+            <div className="search-container">
+              <svg viewBox="0 0 24 24" className="search-icon">
+                <path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+              </svg>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search questions..."
+                className="search-input"
+              />
+            </div>
+
+            <div className="select-container">
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="category-select"
+              >
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat === "all" ? "All Categories" : cat}
+                  </option>
+                ))}
+              </select>
+              <svg viewBox="0 0 24 24" className="select-arrow">
+                <path d="M7 10l5 5 5-5z"/>
+              </svg>
+            </div>
+
+            <button
+              className="random-question-btn"
+              onClick={getNextQuestion}
+              disabled={questionsLoading}
+            >
+              <svg viewBox="0 0 24 24" className="btn-icon">
+                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+              </svg>
+              Random Question
             </button>
           </div>
         </div>
 
         {currentQuestion ? (
-          <div className="current-question-card card">
+          <div className="question-card active">
             <div className="question-meta">
               <span className="category-badge">{currentQuestion.category || "General"}</span>
-              <span className="importance-badge">Importance: {renderImportanceStars(currentQuestion.importance)}</span>
+              <span className="importance-badge">
+                Importance: {renderImportanceStars(currentQuestion.importance)}
+              </span>
             </div>
-            <h3>{currentQuestion.question}</h3>
+            
+            <h3 className="question-text">{currentQuestion.question}</h3>
+
             <form onSubmit={submitAnswer} className="answer-form">
-              <div className="form-group">
-                <label>Your Answer</label>
+              <div className="form-group floating">
                 <textarea
+                  id="answer-text"
                   value={answerText}
                   onChange={(e) => setAnswerText(e.target.value)}
-                  placeholder="Type your thoughtful answer here..."
                   required
-                  rows={5}
+                  rows={6}
                 />
+                <label htmlFor="answer-text">Your Answer</label>
               </div>
+
               <div className="form-actions">
-                <button className="btn primary" type="submit" disabled={isLoading || !answerText.trim()}>
-                  {isLoading ? "Submitting..." : "Submit Answer"}
-                </button>
                 <button
-                  className="btn secondary"
+                  className="submit-btn primary"
+                  type="submit"
+                  disabled={submitAnswerLoading || !answerText.trim()}
+                >
+                  {submitAnswerLoading ? (
+                    <span className="btn-spinner"></span>
+                  ) : (
+                    "Submit Answer"
+                  )}
+                </button>
+
+                <button
+                  className="submit-btn secondary"
                   type="button"
                   onClick={() => setCurrentQuestion(null)}
-                  disabled={isLoading}
+                  disabled={submitAnswerLoading}
                 >
                   Skip Question
                 </button>
@@ -648,225 +963,283 @@ export default function App() {
           </div>
         ) : (
           <>
-            <div className="question-filters card">
-              <div className="filter-group">
-                <label htmlFor="category-filter">Filter by Category:</label>
-                <select id="category-filter" value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat === "all" ? "All Categories" : cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="filter-group">
-                <label htmlFor="search-questions">Search Questions:</label>
-                <input
-                  id="search-questions"
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search questions or categories..."
-                />
-              </div>
-            </div>
-
-            <div className="question-list-container">
-              <h3>Available Questions ({filteredQuestions.length})</h3>
+            <div className="questions-container">
+              <h3 className="questions-header">Available Questions ({filteredQuestions.length})</h3>
+              
               {filteredQuestions.length > 0 ? (
                 <div className="questions-grid">
                   {filteredQuestions.map((q) => (
-                    <div key={safeNumber(q.id)} className="question-card" onClick={() => setCurrentQuestion(q)}>
+                    <div
+                      key={String(safeNumber(q.id)) + q.question}
+                      className="question-card"
+                      onClick={() => setCurrentQuestion(q)}
+                    >
                       <div className="question-meta">
                         <span className="category">{q.category || "General"}</span>
                         <span className="importance">{renderImportanceStars(q.importance)}</span>
                       </div>
                       <p className="question-text">{q.question}</p>
-                      <button
-                        className="btn small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCurrentQuestion(q);
-                        }}
-                      >
-                        Answer This
-                      </button>
+                      <div className="question-actions">
+                        <button
+                          className="answer-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentQuestion(q);
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24">
+                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                          </svg>
+                          Answer
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="empty-state card">
+                <div className="empty-state">
+                  <svg viewBox="0 0 24 24" className="empty-icon">
+                    <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                  </svg>
                   <p>No questions match your filters.</p>
-                  {searchTerm && (
-                    <button
-                      className="btn secondary small"
-                      onClick={() => {
-                        setSearchTerm("");
-                        setSelectedCategory("all");
-                      }}
-                    >
-                      Clear Filters
-                    </button>
-                  )}
+                  <button
+                    className="clear-filters-btn"
+                    onClick={() => {
+                      setSearchTerm("");
+                      setSelectedCategory("all");
+                    }}
+                  >
+                    Clear Filters
+                  </button>
                 </div>
               )}
             </div>
-          </>
-        )}
 
-        <div className="custom-question-form card">
-          <h3>
-            <i className="fas fa-plus-circle" /> Add Your Own Question
-          </h3>
-          <form onSubmit={handleAddCustomQuestion}>
-            <div className="form-group">
-              <label>Question Text</label>
-              <textarea
-                value={customQuestionText}
-                onChange={(e) => setCustomQuestionText(e.target.value)}
-                placeholder="What would you like to be asked about?"
-                required
-                rows={3}
-              />
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Category (optional)</label>
-                <input
-                  value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
-                  placeholder="e.g. Philosophy, Technology, Personal"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Importance: {customImportance}</label>
-                <div className="importance-selector">
-                  <input
-                    type="range"
-                    min="1"
-                    max="5"
-                    value={customImportance}
-                    onChange={(e) => setCustomImportance(e.target.value)}
+            <div className="custom-question-card">
+              <h3 className="custom-question-header">
+                <svg viewBox="0 0 24 24" className="header-icon">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Add Custom Question
+              </h3>
+              
+              <form onSubmit={handleAddCustomQuestion} className="custom-question-form">
+                <div className="form-group floating">
+                  <textarea
+                    id="custom-question"
+                    value={customQuestionText}
+                    onChange={(e) => setCustomQuestionText(e.target.value)}
+                    required
+                    rows={3}
                   />
-                  <div className="importance-labels">
-                    <span>Low</span>
-                    <span>High</span>
+                  <label htmlFor="custom-question">Question Text</label>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group floating">
+                    <input
+                      id="custom-category"
+                      type="text"
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                    />
+                    <label htmlFor="custom-category">Category (optional)</label>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="importance-label">Importance</label>
+                    <div className="importance-selector">
+                      <input
+                        type="range"
+                        min="1"
+                        max="5"
+                        value={customImportance}
+                        onChange={(e) => setCustomImportance(e.target.value)}
+                        className="importance-slider"
+                      />
+                      <div className="importance-value">
+                        {renderImportanceStars(customImportance)}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <button className="btn primary" type="submit" disabled={isLoading || !customQuestionText.trim()}>
-              {isLoading ? "Adding..." : "Add Question"}
-            </button>
-          </form>
-        </div>
+                <button
+                  className="add-question-btn"
+                  type="submit"
+                  disabled={addingQuestionLoading || !customQuestionText.trim()}
+                >
+                  {addingQuestionLoading ? (
+                    <span className="btn-spinner"></span>
+                  ) : (
+                    "Add Question"
+                  )}
+                </button>
+              </form>
+            </div>
+          </>
+        )}
       </div>
     );
   };
 
   const SystemsTab = () => {
-    // Helper function to safely display Principal
     const displayPrincipal = (principal) => {
       try {
-        if (typeof principal === "string") {
-          return principal.slice(0, 8) + "...";
-        }
+        if (!principal) return "unknown";
+        if (typeof principal === "string") return principal.slice(0, 8) + "...";
         return principal.toString().slice(0, 8) + "...";
       } catch (e) {
         return "unknown";
       }
     };
 
+    const formatTime = (timestamp) => {
+      if (!timestamp) return "";
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
+
     return (
-      <div className="systems-tab">
+      <div className="systems-container">
         <div className="systems-header">
-          <h2>
-            <i className="fas fa-network-wired" /> Digital Consciousness Network
+          <h2 className="systems-title">
+            <svg viewBox="0 0 24 24" className="title-icon">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
+            </svg>
+            Digital Consciousness Network
           </h2>
-          <button className="btn secondary" onClick={fetchDeployedSystems} disabled={isLoading}>
-            <i className="fas fa-sync-alt" /> Refresh
+          
+          <button
+            className="refresh-btn"
+            onClick={fetchDeployedSystems}
+            disabled={deployLoading}
+          >
+            <svg viewBox="0 0 24 24" className="btn-icon">
+              <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+            Refresh
           </button>
         </div>
 
-        <div className="systems-container">
-          <div className="systems-list card">
-            <h3>Available Systems ({deployedSystems.length})</h3>
+        <div className="systems-content">
+          <div className="systems-list">
+            <div className="list-header">
+              <h3>Available Systems ({deployedSystems.length})</h3>
+            </div>
+            
             {deployedSystems.length > 0 ? (
-              <ul>
+              <div className="systems-grid">
                 {deployedSystems.map((s, i) => (
-                  <li
+                  <div
                     key={i}
-                    className={`system-item ${selectedSystem?.ownerId === s.ownerId ? "active" : ""}`}
+                    className={`system-card ${selectedSystem?.ownerId === s.ownerId ? "active" : ""}`}
                     onClick={() => pickSystem(s)}
                   >
-                    <div className="system-avatar">{s.username.charAt(0).toUpperCase()}</div>
+                    <div className="system-avatar">
+                      <img src={generateAvatarDataUrl(s.username, 48)} alt={s.username} />
+                    </div>
                     <div className="system-info">
-                      <strong>{s.username}</strong>
-                      <small>ID: {displayPrincipal(s.ownerId)}</small>
+                      <h4 className="system-name">{s.username}</h4>
+                      <p className="system-id">ID: {displayPrincipal(s.ownerId)}</p>
                     </div>
                     <div className="system-action">
-                      <i className="fas fa-comments" />
+                      <svg viewBox="0 0 24 24">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                      </svg>
                     </div>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             ) : (
-              <p className="empty-state">No deployed systems found in the network</p>
+              <div className="empty-state">
+                <svg viewBox="0 0 24 24" className="empty-icon">
+                  <path d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82 1.89 3.2L12 21.04l3.4 1.47 1.89-3.2 3.61-.82-.34-3.7L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/>
+                </svg>
+                <p>No deployed systems found in the network</p>
+              </div>
             )}
           </div>
 
-          <div className="chat-container">
+          <div className="chat-interface">
             {selectedSystem ? (
-              <div className="chat-interface card">
+              <>
                 <div className="chat-header">
-                  <h3>
-                    <i className="fas fa-comment-dots" /> Chat with {selectedSystem.username}
-                  </h3>
-                  <button className="btn small secondary" onClick={() => setSelectedSystem(null)}>
-                    <i className="fas fa-times" />
+                  <div className="chat-partner">
+                    <div className="partner-avatar">
+                      <img src={generateAvatarDataUrl(selectedSystem.username, 48)} alt={selectedSystem.username} />
+                    </div>
+                    <div className="partner-info">
+                      <h3 className="partner-name">{selectedSystem.username}</h3>
+                      <p className="partner-id">ID: {displayPrincipal(selectedSystem.ownerId)}</p>
+                    </div>
+                  </div>
+                  <button
+                    className="close-chat-btn"
+                    onClick={() => setSelectedSystem(null)}
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
                   </button>
                 </div>
 
-                <div className="chat-history">
+                <div className="chat-messages">
                   {chatHistory.length > 0 ? (
                     chatHistory.map((m, i) => (
-                      <div key={i} className={`message ${m.fromMe ? "outgoing" : "incoming"}`}>
-                        <div className="message-content">{m.text}</div>
-                        <div className="message-meta">{m.fromMe ? "You" : selectedSystem.username}</div>
+                      <div
+                        key={i}
+                        className={`message ${m.fromMe ? "outgoing" : "incoming"}`}
+                      >
+                        <div className="message-content">
+                          <div className="message-text">{m.text}</div>
+                          <div className="message-time">{formatTime(m.timestamp)}</div>
+                        </div>
                       </div>
                     ))
                   ) : (
                     <div className="empty-chat">
-                      <i className="fas fa-comment-slash" />
+                      <svg viewBox="0 0 24 24" className="empty-icon">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                      </svg>
                       <p>Start a conversation with this digital consciousness</p>
                     </div>
                   )}
                   <div ref={chatEndRef} />
                 </div>
 
-                <form onSubmit={sendChat} className="chat-input">
+                <form onSubmit={sendChat} className="chat-input-container">
                   <input
+                    type="text"
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
                     placeholder="Type your message here..."
                     required
-                    disabled={isLoading}
+                    disabled={chatLoading}
+                    className="chat-input"
                   />
-                  <button className="btn primary" type="submit" disabled={isLoading || !chatMessage.trim()}>
-                    {isLoading ? "Sending..." : "Send"}
+                  <button
+                    type="submit"
+                    className="send-btn"
+                    disabled={chatLoading || !chatMessage.trim()}
+                  >
+                    {chatLoading ? (
+                      <span className="btn-spinner"></span>
+                    ) : (
+                      <svg viewBox="0 0 24 24">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                      </svg>
+                    )}
                   </button>
                 </form>
-              </div>
+              </>
             ) : (
-              <div className="chat-placeholder card">
-                <div className="placeholder-content">
-                  <i className="fas fa-robot" />
-                  <h3>Select a System to Chat</h3>
-                  <p>Choose from the list of deployed digital consciousnesses to start a conversation</p>
-                </div>
+              <div className="chat-placeholder">
+                <svg viewBox="0 0 24 24" className="placeholder-icon">
+                  <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                </svg>
+                <h3>Select a System to Chat</h3>
+                <p>Choose from the list of deployed digital consciousnesses to start a conversation</p>
               </div>
             )}
           </div>
@@ -876,148 +1249,223 @@ export default function App() {
   };
 
   const SettingsTab = () => (
-    <div className="settings-tab">
-      <h2>
-        <i className="fas fa-user-cog" /> Profile Settings
+    <div className="settings-container">
+      <h2 className="settings-title">
+        <svg viewBox="0 0 24 24" className="title-icon">
+          <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+        </svg>
+        Profile Settings
       </h2>
 
-      <form onSubmit={handleUpdateProfile} className="profile-form card">
-        <div className="form-row">
-          <div className="form-group">
-            <label>Profile Picture</label>
-            <div className="profile-pic-upload">
-              <div className="profile-pic-preview">
-                {profilePicFile ? (
-                  <img src={URL.createObjectURL(profilePicFile)} alt="Preview" />
-                ) : userProfile?.profilePic ? (
-                  <img src={profilePicToDataUrl(userProfile.profilePic)} alt="Current" />
-                ) : (
-                  <div className="placeholder">
-                    <i className="fas fa-user" />
-                  </div>
-                )}
+      <form onSubmit={handleUpdateProfile} className="profile-form">
+        <div className="form-section">
+          <div className="avatar-section">
+            <label className="avatar-label">Profile Picture</label>
+            <div className="avatar-container">
+              <div className="avatar-preview">
+                <img src={profilePicSrc} alt="Current" className="avatar-image" />
               </div>
-              <label className="file-upload-btn">
+              <label className="avatar-upload-btn">
                 <input type="file" accept="image/*" onChange={handleProfilePicChange} />
-                <span className="btn secondary">
-                  <i className="fas fa-camera" /> Change Photo
-                </span>
+                <svg viewBox="0 0 24 24" className="upload-icon">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Change Photo
               </label>
             </div>
           </div>
 
-          <div className="form-group bio-group">
-            <label>Bio</label>
-            <textarea
-              value={bioText}
-              onChange={(e) => setBioText(e.target.value)}
-              placeholder="Describe yourself, your interests, and what makes you unique..."
-              rows="6"
-              maxLength={500}
-            />
-            <div className="char-count">{bioText.length}/500</div>
+          <div className="bio-section">
+            <div className="form-group floating">
+              <textarea
+                id="bio-text"
+                value={bioText}
+                onChange={(e) => setBioText(e.target.value)}
+                rows="6"
+                maxLength={500}
+              />
+              <label htmlFor="bio-text">Bio</label>
+              <div className="char-counter">{bioText.length}/500</div>
+            </div>
           </div>
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn primary" disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save Changes"}
+          <button type="submit" className="save-btn" disabled={profileLoading}>
+            {profileLoading ? (
+              <span className="btn-spinner"></span>
+            ) : (
+              "Save Changes"
+            )}
           </button>
         </div>
       </form>
 
-      <div className="account-section card">
-        <h3>
-          <i className="fas fa-id-card" /> Account Information
+      <div className="account-info">
+        <h3 className="info-title">
+          <svg viewBox="0 0 24 24" className="title-icon">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+          </svg>
+          Account Information
         </h3>
-        <div className="account-details">
-          <div className="detail-item">
-            <span className="detail-label">Username:</span>
-            <span className="detail-value">{userProfile?.username}</span>
+        
+        <div className="info-grid">
+          <div className="info-item">
+            <span className="info-label">Username:</span>
+            <span className="info-value">{userProfile?.username}</span>
           </div>
-          <div className="detail-item">
-            <span className="detail-label">Email:</span>
-            <span className="detail-value">{userProfile?.email}</span>
+          <div className="info-item">
+            <span className="info-label">Email:</span>
+            <span className="info-value">{userProfile?.email}</span>
           </div>
-          <div className="detail-item">
-            <span className="detail-label">System ID:</span>
-            <span className="detail-value monospace">
+          <div className="info-item">
+            <span className="info-label">System ID:</span>
+            <span className="info-value">
               {typeof userProfile?.id === "string"
                 ? userProfile.id.slice(0, 12) + "..."
                 : userProfile?.id
-                ? userProfile.id.toString().slice(0, 12) + "..."
-                : "-"}
+                  ? userProfile.id.toString().slice(0, 12) + "..."
+                  : "-"}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="danger-zone card">
-        <h3>
-          <i className="fas fa-exclamation-triangle" /> Danger Zone
+      <div className="danger-zone">
+        <h3 className="danger-title">
+          <svg viewBox="0 0 24 24" className="title-icon">
+            <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1.06 13.54L7.4 12l1.41-1.41 2.12 2.12 4.24-4.24 1.41 1.41-5.64 5.66z"/>
+          </svg>
+          Danger Zone
         </h3>
-        <p>These actions are irreversible. Proceed with caution.</p>
-
+        <p className="danger-warning">These actions are irreversible. Proceed with caution.</p>
+        
         <div className="danger-actions">
-          <button className="btn danger" onClick={handleLogout}>
-            <i className="fas fa-sign-out-alt" /> Logout
+          <button className="logout-btn" onClick={handleLogout}>
+            <svg viewBox="0 0 24 24" className="btn-icon">
+              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+            </svg>
+            Logout
           </button>
         </div>
       </div>
     </div>
   );
 
-  // ========== MAIN RENDER ==========
+  // ==================== MAIN RENDER ====================
   return (
-    <div className="app-root">
-      {isLoading && (
+    <div className="app-container">
+      {/* Loading overlay */}
+      {initialLoading && (
         <div className="loading-overlay">
-          <div className="loading-spinner" />
+          <div className="loading-content">
+            <div className="loading-spinner">
+              <div className="spinner-circle"></div>
+            </div>
+            <p>Initializing Digital Consciousness...</p>
+          </div>
         </div>
       )}
 
+      {/* Authentication modal */}
       {!isAuthenticated ? (
-        <AuthModal />
+        <AuthModal
+          onRegister={async ({ username, email, password }) => {
+            setAuthOperationLoading(true);
+            const res = await registerUser({ username, email, password });
+            setAuthOperationLoading(false);
+            return res;
+          }}
+          onLogin={async ({ username, password }) => {
+            setAuthOperationLoading(true);
+            const res = await loginUser({ username, password });
+            setAuthOperationLoading(false);
+            return res;
+          }}
+        />
       ) : (
         <>
+          {/* Main app layout */}
           <header className="app-header">
-            <div className="header-left">
-              <h1>
-                <i className="fas fa-brain" /> Digital Consciousness
-              </h1>
+            <div className="header-content">
+              <div className="logo-container">
+                <img 
+                  src={generateAvatarDataUrl("Digital Consciousness", 40)} 
+                  alt="logo" 
+                  className="logo-image"
+                />
+                <h1 className="logo-text">Digital Consciousness</h1>
+              </div>
+
               <nav className="main-nav">
-                <button className={`nav-btn ${activeTab === "dashboard" ? "active" : ""}`} onClick={() => setActiveTab("dashboard")}>
-                  <i className="fas fa-home" /> Dashboard
+                <button 
+                  className={`nav-btn ${activeTab === "dashboard" ? "active" : ""}`}
+                  onClick={() => setActiveTab("dashboard")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                  </svg>
+                  Dashboard
                 </button>
-                <button className={`nav-btn ${activeTab === "training" ? "active" : ""}`} onClick={() => setActiveTab("training")}>
-                  <i className="fas fa-graduation-cap" /> Training
+                <button 
+                  className={`nav-btn ${activeTab === "training" ? "active" : ""}`}
+                  onClick={() => setActiveTab("training")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+                  </svg>
+                  Training
                 </button>
-                <button className={`nav-btn ${activeTab === "systems" ? "active" : ""}`} onClick={() => setActiveTab("systems")}>
-                  <i className="fas fa-network-wired" /> Systems
+                <button 
+                  className={`nav-btn ${activeTab === "systems" ? "active" : ""}`}
+                  onClick={() => setActiveTab("systems")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
+                  </svg>
+                  Systems
                 </button>
-                <button className={`nav-btn ${activeTab === "settings" ? "active" : ""}`} onClick={() => setActiveTab("settings")}>
-                  <i className="fas fa-cog" /> Settings
+                <button 
+                  className={`nav-btn ${activeTab === "settings" ? "active" : ""}`}
+                  onClick={() => setActiveTab("settings")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                  </svg>
+                  Settings
                 </button>
               </nav>
-            </div>
-            <div className="user-controls">
-              <div className="user-info">
-                <div className="user-avatar">
-                  {userProfile?.profilePic ? (
-                    <img src={profilePicToDataUrl(userProfile.profilePic)} alt="Profile" />
-                  ) : (
-                    <span>{userProfile?.username?.charAt(0).toUpperCase()}</span>
-                  )}
+
+              <div className="user-controls">
+                <div className="user-profile">
+                  <div className="user-avatar">
+                    <img src={profilePicSrc} alt="Profile" />
+                  </div>
+                  <span className="user-name">{userProfile?.username}</span>
                 </div>
-                <span className="username">{userProfile?.username}</span>
+                <button className="logout-btn" onClick={handleLogout}>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                  </svg>
+                </button>
               </div>
-              <button className="btn small logout-btn" onClick={handleLogout}>
-                <i className="fas fa-sign-out-alt" />
-              </button>
             </div>
           </header>
 
           <main className="app-main">
+            {authMessage && (
+              <div className={`global-message ${authMessage.includes("success") ? "success" : "error"}`}>
+                <div className="message-content">
+                  {authMessage}
+                  <button className="close-btn" onClick={() => setAuthMessage("")}>
+                    <svg viewBox="0 0 24 24">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {activeTab === "dashboard" && <DashboardTab />}
             {activeTab === "training" && <TrainingTab />}
             {activeTab === "systems" && <SystemsTab />}
@@ -1025,9 +1473,19 @@ export default function App() {
           </main>
 
           <footer className="app-footer">
-            <small>
-              <i className="fas fa-copyright" /> Digital Consciousness Platform
-            </small>
+            <div className="footer-content">
+              <div className="footer-copyright">
+                <svg viewBox="0 0 24 24" className="copyright-icon">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
+                </svg>
+                <span>Digital Consciousness Platform</span>
+              </div>
+              <div className="footer-links">
+                <a href="#privacy" className="footer-link">Privacy</a>
+                <a href="#terms" className="footer-link">Terms</a>
+                <a href="#contact" className="footer-link">Contact</a>
+              </div>
+            </div>
           </footer>
         </>
       )}
