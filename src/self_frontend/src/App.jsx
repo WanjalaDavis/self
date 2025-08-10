@@ -34,11 +34,10 @@ function arrayBufferToBase64(buffer) {
 }
 
 /* Avatar generation system */
-function initialsFromName(name = "") {
+function getInitialFromName(name = "") {
   const parts = (name || "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "DC";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  if (parts.length === 0) return "U";
+  return parts[0][0].toUpperCase();
 }
 
 function hashToColors(str = "") {
@@ -58,40 +57,9 @@ function hashToColors(str = "") {
   ];
 }
 
-function generateShape(hash, size) {
-  const shapeType = Math.abs(hash) % 5;
-  const padding = Math.max(4, Math.round(size * 0.05));
-  const innerSize = size - padding * 2;
-  switch (shapeType) {
-    case 0:
-      return `<circle cx="${size / 2}" cy="${size / 2}" r="${innerSize / 2}" />`;
-    case 1:
-      return `<rect x="${padding}" y="${padding}" rx="${Math.round(size / 8)}" width="${innerSize}" height="${innerSize}" />`;
-    case 2:
-      return `<polygon points="${size / 2},${padding} ${size - padding},${size - padding} ${padding},${size - padding}" />`;
-    case 3:
-      return `<polygon points="${size / 2},${padding} ${size - padding},${size / 3} ${size - padding},${size * 2 / 3} ${size / 2},${size - padding} ${padding},${size * 2 / 3} ${padding},${size / 3}" />`;
-    default: {
-      const points = 6;
-      const blob = [];
-      for (let i = 0; i < points; i++) {
-        const angle = (i * 2 * Math.PI) / points;
-        const r = (innerSize / 2) * (0.75 + 0.2 * Math.sin(hash + i));
-        const x = size / 2 + r * Math.cos(angle);
-        const y = size / 2 + r * Math.sin(angle);
-        blob.push(`${x},${y}`);
-      }
-      return `<polygon points="${blob.join(" ")}" />`;
-    }
-  }
-}
-
-function generateAvatarDataUrl(name = "", size = 256) {
-  const initials = initialsFromName(name || "");
-  const [c1, c2] = hashToColors(name || initials);
-  const hash = Array.from((name || initials)).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  const shape = generateShape(hash, size);
-  const fontSize = Math.round(size / (initials.length > 1 ? 2.8 : 3.8));
+function generateInitialAvatar(name = "", size = 256) {
+  const initial = getInitialFromName(name || "");
+  const [c1, c2] = hashToColors(name || initial);
   const svg = `
     <svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 ${size} ${size}'>
       <defs>
@@ -100,30 +68,59 @@ function generateAvatarDataUrl(name = "", size = 256) {
           <stop offset='100%' stop-color='${c2}' />
         </linearGradient>
       </defs>
-      <rect width='100%' height='100%' fill='#f6f7fb' />
-      ${shape.replace(">", ` fill="url(#g)" />`)}
+      <rect width='100%' height='100%' rx='${size/2}' fill="url(#g)" />
       <text x='50%' y='50%' text-anchor='middle' dominant-baseline='middle' 
             font-family='system-ui, -apple-system, "Segoe UI", Roboto, Arial' 
-            font-size='${fontSize}' font-weight='700' fill='rgba(255,255,255,0.95)'>
-        ${initials}
+            font-size='${size * 0.5}' font-weight='700' fill='rgba(255,255,255,0.95)'>
+        ${initial}
       </text>
     </svg>
   `;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+function createEchosoulLogo(size = 80) {
+  const svg = `
+    <svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size * 0.6}' viewBox='0 0 200 120'>
+      <style>
+        .logo-text {
+          font-family: 'Arial', sans-serif;
+          font-weight: bold;
+          font-size: 60px;
+          fill: none;
+          stroke: #4a6bff;
+          stroke-width: 2;
+          stroke-linejoin: round;
+        }
+        .logo-text-shadow {
+          font-family: 'Arial', sans-serif;
+          font-weight: bold;
+          font-size: 60px;
+          fill: none;
+          stroke: #2a4bdf;
+          stroke-width: 6;
+          stroke-linejoin: round;
+        }
+      </style>
+      <text x="100" y="80" class="logo-text-shadow" text-anchor="middle">EchoSoul</text>
+      <text x="100" y="80" class="logo-text" text-anchor="middle">EchoSoul</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 const profilePicToDataUrl = (profilePic, fallbackName = "") => {
-  if (!profilePic) return generateAvatarDataUrl(fallbackName || "User");
+  if (!profilePic) return generateInitialAvatar(fallbackName || "User");
   if (typeof profilePic === "string") {
     if (profilePic.startsWith("data:")) return profilePic;
     if (/^[A-Za-z0-9+/=]+$/.test(profilePic)) return `data:image/png;base64,${profilePic}`;
   }
   try {
     const base64 = arrayBufferToBase64(profilePic);
-    return base64 ? `data:image/png;base64,${base64}` : generateAvatarDataUrl(fallbackName || "User");
+    return base64 ? `data:image/png;base64,${base64}` : generateInitialAvatar(fallbackName || "User");
   } catch (e) {
     console.warn("profilePicToDataUrl failed:", e);
-    return generateAvatarDataUrl(fallbackName || "User");
+    return generateInitialAvatar(fallbackName || "User");
   }
 };
 
@@ -563,7 +560,7 @@ export default function App() {
             <div className="auth-modal-header">
               <div className="auth-logo">
                 <img 
-                  src={generateAvatarDataUrl("Digital Consciousness", 80)} 
+                  src={createEchosoulLogo(80)} 
                   alt="logo" 
                   className="auth-logo-image"
                 />
@@ -1137,7 +1134,7 @@ export default function App() {
                     onClick={() => pickSystem(s)}
                   >
                     <div className="system-avatar">
-                      <img src={generateAvatarDataUrl(s.username, 48)} alt={s.username} />
+                      <img src={generateInitialAvatar(s.username, 48)} alt={s.username} />
                     </div>
                     <div className="system-info">
                       <h4 className="system-name">{s.username}</h4>
@@ -1167,7 +1164,7 @@ export default function App() {
                 <div className="chat-header">
                   <div className="chat-partner">
                     <div className="partner-avatar">
-                      <img src={generateAvatarDataUrl(selectedSystem.username, 48)} alt={selectedSystem.username} />
+                      <img src={generateInitialAvatar(selectedSystem.username, 48)} alt={selectedSystem.username} />
                     </div>
                     <div className="partner-info">
                       <h3 className="partner-name">{selectedSystem.username}</h3>
@@ -1390,7 +1387,7 @@ export default function App() {
             <div className="header-content">
               <div className="logo-container">
                 <img 
-                  src={generateAvatarDataUrl("Digital Consciousness", 40)} 
+                  src={createEchosoulLogo(40)} 
                   alt="logo" 
                   className="logo-image"
                 />
