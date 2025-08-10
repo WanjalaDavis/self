@@ -685,7 +685,7 @@ export default function App() {
     return (
       <div className="dashboard-container">
         <div className="dashboard-header">
-          <h2 className="dashboard-title">Your Digital Consciousness</h2>
+          <h2 className="dashboard-title">EchoSoul- Digital Consciousness</h2>
           <div className="dashboard-stats">
             <div className="stat-card">
               <div className="stat-icon knowledge">
@@ -1054,9 +1054,9 @@ export default function App() {
                         onChange={(e) => setCustomImportance(e.target.value)}
                         className="importance-slider"
                       />
-                      <div className="importance-value">
+                      {/* <div className="importance-value">
                         {renderImportanceStars(customImportance)}
-                      </div>
+                      </div> */}
                     </div>
                   </div>
                 </div>
@@ -1395,42 +1395,74 @@ export default function App() {
               </div>
 
               <nav className="main-nav">
-                <button 
-                  className={`nav-btn ${activeTab === "dashboard" ? "active" : ""}`}
-                  onClick={() => setActiveTab("dashboard")}
-                >
-                  <svg viewBox="0 0 24 24" className="nav-icon">
-                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                  </svg>
-                  Dashboard
-                </button>
-                <button 
-                  className={`nav-btn ${activeTab === "training" ? "active" : ""}`}
-                  onClick={() => setActiveTab("training")}
-                >
-                  <svg viewBox="0 0 24 24" className="nav-icon">
-                    <path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
-                  </svg>
-                  Training
-                </button>
-                <button 
-                  className={`nav-btn ${activeTab === "systems" ? "active" : ""}`}
-                  onClick={() => setActiveTab("systems")}
-                >
-                  <svg viewBox="0 0 24 24" className="nav-icon">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
-                  </svg>
-                  Systems
-                </button>
-                <button 
-                  className={`nav-btn ${activeTab === "settings" ? "active" : ""}`}
-                  onClick={() => setActiveTab("settings")}
-                >
-                  <svg viewBox="0 0 24 24" className="nav-icon">
-                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
-                  </svg>
-                  Settings
-                </button>
+
+
+<button 
+  className={`nav-btn ${activeTab === "dashboard" ? "active" : ""}`}
+  onClick={() => setActiveTab("dashboard")}
+>
+  <svg viewBox="0 0 24 24" className="nav-icon">
+    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+  </svg>
+  Dashboard
+</button>
+
+<button 
+  className={`nav-btn ${activeTab === "training" ? "active" : ""}`}
+  onClick={() => setActiveTab("training")}
+>
+  <svg viewBox="0 0 24 24" className="nav-icon">
+    <path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+  </svg>
+  Training
+</button>
+
+<button 
+  className={`nav-btn ${activeTab === "systems" ? "active" : ""}`}
+  onClick={() => setActiveTab("systems")}
+>
+  <svg viewBox="0 0 24 24" className="nav-icon">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
+  </svg>
+  Systems
+</button>
+
+<button 
+  className={`nav-btn ${activeTab === "ai" ? "active" : ""}`}
+  onClick={() => setActiveTab("ai")}
+  disabled
+  title="Coming soon"
+>
+  <svg viewBox="0 0 24 24" className="nav-icon">
+    <path d="M21 11.5c0 4.14-3.36 7.5-7.5 7.5-1.04 0-2.04-.21-2.95-.6l-4.16 2.37.35-4.14C5.3 14.78 5 13.17 5 11.5 5 7.36 8.36 4 12.5 4c3.09 0 5.72 1.93 6.8 4.64l2.2-.84C20.2 4.85 16.66 2 12.5 2 6.98 2 2.5 6.48 2.5 12S6.98 22 12.5 22c1.5 0 2.92-.3 4.21-.85l2.94 1.67-.75-4.67c1.6-1.39 2.6-3.41 2.6-5.65z"/>
+  </svg>
+  Echosoul AI
+  <span className="coming-soon-badge">Soon</span>
+</button>
+
+<button 
+  className={`nav-btn ${activeTab === "savings" ? "active" : ""}`}
+  onClick={() => setActiveTab("savings")}
+  disabled
+  title="Coming soon"
+>
+  <svg viewBox="0 0 24 24" className="nav-icon">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
+  </svg>
+  Savings
+  <span className="coming-soon-badge">Soon</span>
+</button>
+
+<button 
+  className={`nav-btn ${activeTab === "settings" ? "active" : ""}`}
+  onClick={() => setActiveTab("settings")}
+>
+  <svg viewBox="0 0 24 24" className="nav-icon">
+    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+  </svg>
+  Settings
+</button>
+
               </nav>
 
               <div className="user-controls">
@@ -1469,21 +1501,23 @@ export default function App() {
             {activeTab === "settings" && <SettingsTab />}
           </main>
 
-          <footer className="app-footer">
-            <div className="footer-content">
-              <div className="footer-copyright">
-                <svg viewBox="0 0 24 24" className="copyright-icon">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
-                </svg>
-                <span>Digital Consciousness Platform</span>
-              </div>
-              <div className="footer-links">
-                <a href="#privacy" className="footer-link">Privacy</a>
-                <a href="#terms" className="footer-link">Terms</a>
-                <a href="#contact" className="footer-link">Contact</a>
-              </div>
-            </div>
-          </footer>
+      <footer className="app-footer">
+        <div className="footer-content">
+          <div className="footer-brand">
+            <span className="footer-icon">♾️</span>
+            <span>Echosoul • Digital Consciousness</span>
+          </div>
+          <div className="footer-links">
+            <a href="#privacy" className="footer-link">Privacy</a>
+            <span className="footer-divider">|</span>
+            <a href="#terms" className="footer-link">Terms</a>
+            <span className="footer-divider">|</span>
+            <a href="#contact" className="footer-link">Contact</a>
+          </div>
+        </div>
+      </footer>
+
+
         </>
       )}
     </div>

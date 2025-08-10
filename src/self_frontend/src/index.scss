@@ -1019,33 +1019,46 @@ input, textarea, select {
       font-weight: 600;
     }
     
-    .importance-badge {
-      color: rgba($dark-color, 0.7);
-      display: flex;
-      align-items: center;
-    }
+    // .importance-badge {
+    //   color: rgba($dark-color, 0.7);
+    //   display: flex;
+    //   align-items: center;
+    // }
     
     .question-text {
       font-size: 1.1rem;
       margin-bottom: 1.5rem;
       font-weight: 500;
     }
-    
-    .stars {
-      display: inline-flex;
-      margin-left: 0.5rem;
-      
-      .star {
-        width: 16px;
-        height: 16px;
-        margin-right: 0.25rem;
-        fill: rgba($dark-color, 0.2);
+ 
+
+      .stars {
+        display: inline-flex;
+        align-items: center;
+        margin-left: 0.5rem;
         
-        &.filled {
-          fill: $warning-color;
+        .star {
+          width: 14px;  // Reduced from 16px
+          height: 14px; // Reduced from 16px
+          margin-right: 0.15rem; // Reduced spacing
+          fill: rgba($dark-color, 0.2);
+          flex-shrink: 0; // Prevent shrinking
+          
+          &.filled {
+            fill: $warning-color;
+          }
         }
       }
-    }
+
+      // For the importance badge specifically (around line 1190), add:
+      .importance-badge {
+        display: flex;
+        align-items: center;
+        
+        .stars {
+          margin-left: 0.25rem; // Reduced left margin
+        }
+      }
   }
   
   .answer-form {
@@ -1926,4 +1939,14 @@ input, textarea, select {
 // ==================== UTILITY CLASSES ====================
 .hidden {
   display: none !important;
+}
+
+.coming-soon-badge {
+  font-size: 0.7em;
+  background: #555;
+  color: white;
+  padding: 2px 5px;
+  border-radius: 10px;
+  margin-left: 5px;
+  opacity: 0.8;
 }
