@@ -1,4 +1,3 @@
-// App.jsx — FULL file with Ultimate UI
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Principal } from "@dfinity/principal";
 import { self_backend } from "../../declarations/self_backend";
@@ -8,6 +7,13 @@ import "./index.scss";
 const isOk = (res) => res && Object.prototype.hasOwnProperty.call(res, "ok");
 const getErr = (res) => (res && res.err) || (res && res["err"]) || null;
 const getOk = (res) => (res && res.ok) || (res && res["ok"]) || null;
+
+
+
+// Candid/DFINITY JS wrapper: optional is encoded as an array
+// - [] => None
+// - [value] => Some(value)
+const opt = (v) => (v === undefined || v === null) ? [] : [v];
 
 function arrayBufferToBase64(buffer) {
   if (!buffer) return null;
@@ -139,6 +145,25 @@ const safeNumber = (value) => {
   return value;
 };
 
+// Emotion type mapping - matches backend variant
+const emotionOptions = [
+  { id: "happy", label: "Happy", icon: "😊", variant: { happy: "😊" } },
+  { id: "sad", label: "Sad", icon: "😢", variant: { sad: "😢" } },
+  { id: "angry", label: "Angry", icon: "😠", variant: { angry: "😠" } },
+  { id: "neutral", label: "Neutral", icon: "😐", variant: { neutral: "😐" } },
+  { id: "excited", label: "Excited", icon: "🤩", variant: { excited: "🤩" } },
+  { id: "confused", label: "Confused", icon: "😕", variant: { confused: "😕" } }
+];
+
+const communicationStyleIcons = {
+  formal: "🎩",
+  casual: "👕",
+  technical: "💻",
+  humorous: "🤡",
+  empathetic: "🤗",
+  balanced: "⚖️"
+};
+
 // ==================== MAIN APPLICATION ====================
 export default function App() {
   // --- Authentication state
@@ -156,6 +181,8 @@ export default function App() {
   const [chatLoading, setChatLoading] = useState(false);
   const [addingQuestionLoading, setAddingQuestionLoading] = useState(false);
   const [submitAnswerLoading, setSubmitAnswerLoading] = useState(false);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
 
   // --- Training state
   const [questions, setQuestions] = useState([]);
@@ -164,8 +191,10 @@ export default function App() {
   const [customQuestionText, setCustomQuestionText] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [customImportance, setCustomImportance] = useState(3);
+  const [customTriggers, setCustomTriggers] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEmotion, setSelectedEmotion] = useState(null);
   const debouncedSearchTerm = useDebounce(searchTerm, 450);
 
   // --- Systems/chat state
@@ -173,12 +202,21 @@ export default function App() {
   const [selectedSystem, setSelectedSystem] = useState(null);
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState([]);
+  const [resetContext, setResetContext] = useState(false);
   const chatEndRef = useRef(null);
 
   // --- Profile settings
   const [bioText, setBioText] = useState("");
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [profilePreviewUrl, setProfilePreviewUrl] = useState(null);
+  const [preferredStyle, setPreferredStyle] = useState("balanced");
+  const [depthLevel, setDepthLevel] = useState(2);
+  const [formality, setFormality] = useState(3);
+
+  // --- Memory and analysis
+  const [memoryDetails, setMemoryDetails] = useState(null);
+  const [analysisText, setAnalysisText] = useState("");
+  const [analysisResult, setAnalysisResult] = useState(null);
 
   // Profile picture preview effect
   useEffect(() => {
@@ -210,9 +248,15 @@ export default function App() {
           setUserProfile(user);
           setIsAuthenticated(true);
           setBioText(user?.bio || "");
+          setPreferredStyle(user?.preferences?.preferredStyle || "balanced");
+          setDepthLevel(user?.preferences?.depthLevel || 2);
+          setFormality(user?.preferences?.formality || 3);
         }
         await refreshQuestions();
-        await fetchDeployedSystems();
+        // fetchDeployedSystems may be defined elsewhere in your file
+        if (typeof fetchDeployedSystems === "function") {
+          await fetchDeployedSystems();
+        }
       } catch (err) {
         console.warn("bootstrap failed", err);
       } finally {
@@ -230,6 +274,7 @@ export default function App() {
   // ==================== AUTHENTICATION ====================
   const registerUser = useCallback(async ({ username, email, password }) => {
     try {
+      setAuthOperationLoading(true);
       const res = await self_backend.register(username, email, password);
       if (isOk(res)) {
         const user = getOk(res);
@@ -240,16 +285,21 @@ export default function App() {
         return { ok: true, user };
       } else {
         const err = getErr(res) || "Registration failed";
+        setAuthMessage(err);
         return { ok: false, err };
       }
     } catch (e) {
       console.error("registerUser error", e);
+      setAuthMessage("An unexpected error occurred during registration.");
       return { ok: false, err: "An unexpected error occurred during registration." };
+    } finally {
+      setAuthOperationLoading(false);
     }
   }, []);
 
   const loginUser = useCallback(async ({ username, password }) => {
     try {
+      setAuthOperationLoading(true);
       const res = await self_backend.login(username, password);
       if (isOk(res)) {
         const user = getOk(res);
@@ -260,11 +310,15 @@ export default function App() {
         return { ok: true, user };
       } else {
         const err = getErr(res) || "Login failed";
+        setAuthMessage(err);
         return { ok: false, err };
       }
     } catch (e) {
       console.error("loginUser error", e);
+      setAuthMessage("An error occurred during login.");
       return { ok: false, err: "An error occurred during login." };
+    } finally {
+      setAuthOperationLoading(false);
     }
   }, []);
 
@@ -277,6 +331,8 @@ export default function App() {
     setActiveTab("dashboard");
     setChatHistory([]);
     setSelectedSystem(null);
+    setMemoryDetails(null);
+    setAnalysisResult(null);
   };
 
   // ==================== PROFILE ====================
@@ -284,7 +340,11 @@ export default function App() {
     try {
       const res = await self_backend.getDashboard();
       if (isOk(res)) {
-        setUserProfile(getOk(res));
+        const user = getOk(res);
+        setUserProfile(user);
+        setPreferredStyle(user?.preferences?.preferredStyle || "balanced");
+        setDepthLevel(user?.preferences?.depthLevel || 2);
+        setFormality(user?.preferences?.formality || 3);
       } else {
         console.warn("refreshDashboard warn", getErr(res));
       }
@@ -311,7 +371,25 @@ export default function App() {
         const arrayBuffer = await profilePicFile.arrayBuffer();
         pic = new Uint8Array(arrayBuffer);
       }
-      const res = await self_backend.updateProfile(bioText ? bioText : null, pic ? pic : null);
+
+      // Use opt(...) to encode ?T arguments for candid wrapper
+      const bioOpt = (bioText && bioText.trim() !== "") ? opt(bioText.trim()) : [];
+      const picOpt = pic ? opt(pic) : [];
+      const styleOpt = preferredStyle ? opt(preferredStyle) : [];
+      const depthOpt = (depthLevel !== undefined && depthLevel !== null) ? opt(depthLevel) : [];
+      const formalityOpt = (formality !== undefined && formality !== null) ? opt(formality) : [];
+
+      // debug:
+      // console.log("updateProfile sending:", { bioOpt, picOpt, styleOpt, depthOpt, formalityOpt });
+
+      const res = await self_backend.updateProfile(
+        bioOpt,
+        picOpt,
+        styleOpt,
+        depthOpt,
+        formalityOpt
+      );
+
       if (isOk(res)) {
         await refreshDashboard();
         setAuthMessage("Profile updated successfully!");
@@ -345,10 +423,14 @@ export default function App() {
     }
   }, []);
 
-  const getNextQuestion = useCallback(async () => {
+  const getNextQuestion = useCallback(async (context) => {
     setQuestionsLoading(true);
     try {
-      const res = await self_backend.getNextQuestion();
+      // Normalize context: use undefined/empty -> None, else Some(string)
+      const ctx = (typeof context === "string" && context.trim() !== "") ? context.trim() : undefined;
+
+      // debug: console.log("getNextQuestion sending ctx:", JSON.stringify(opt(ctx)));
+      const res = await self_backend.getNextQuestion(opt(ctx));
       if (isOk(res)) {
         setCurrentQuestion(getOk(res));
         setAnswerText("");
@@ -369,13 +451,36 @@ export default function App() {
       setAuthMessage("Please select a question first.");
       return;
     }
+
     setSubmitAnswerLoading(true);
     try {
-      const res = await self_backend.submitAnswer(safeNumber(currentQuestion.id), answerText);
+      // Properly construct emotion variant and wrap in opt (Some([...]) -> [variant], None -> [])
+      const emotionVariant = selectedEmotion
+        ? (typeof selectedEmotion === "string"
+            ? (emotionOptions.find((em) => em.id === selectedEmotion) || {}).variant
+            : selectedEmotion.variant || null)
+        : null;
+
+      const emotionOpt = emotionVariant ? opt(emotionVariant) : [];
+
+      const qid = safeNumber(currentQuestion.id);
+
+      // debug: console.log("submitAnswer sending:", { qid, answerText, emotionOpt });
+
+      const res = await self_backend.submitAnswer(
+        qid,
+        answerText,
+        emotionOpt
+      );
+
       if (isOk(res)) {
         setAuthMessage("Answer submitted successfully!");
+        // refresh state
+        await refreshQuestions();
         await refreshDashboard();
         setCurrentQuestion(null);
+        setSelectedEmotion(null);
+        setAnswerText("");
       } else {
         setAuthMessage(getErr(res) || "Failed to submit answer.");
       }
@@ -395,16 +500,19 @@ export default function App() {
     }
     setAddingQuestionLoading(true);
     try {
+      const triggers = customTriggers.split(",").map(t => t.trim()).filter(Boolean);
       const res = await self_backend.addCustomQuestion(
         customQuestionText,
         customCategory,
-        Number(customImportance)
+        Number(customImportance),
+        triggers
       );
       if (isOk(res)) {
         setAuthMessage("Custom question added successfully!");
         setCustomQuestionText("");
         setCustomCategory("");
         setCustomImportance(3);
+        setCustomTriggers("");
         await refreshQuestions();
       } else {
         setAuthMessage(getErr(res) || "Failed to add custom question.");
@@ -467,6 +575,7 @@ export default function App() {
     setSelectedSystem(system);
     setChatHistory([]);
     setChatMessage("");
+    setResetContext(false);
   };
 
   const sendChat = async (e) => {
@@ -491,7 +600,7 @@ export default function App() {
         }
       }
 
-      const res = await self_backend.chatWithSystem(owner, chatMessage);
+      const res = await self_backend.chatWithSystem(owner, chatMessage, resetContext);
       if (isOk(res)) {
         const reply = getOk(res);
         setChatHistory((h) => [
@@ -500,6 +609,7 @@ export default function App() {
           { fromMe: false, text: reply, timestamp: new Date().toISOString() },
         ]);
         setChatMessage("");
+        setResetContext(false);
       } else {
         setAuthMessage(getErr(res) || "Chat failed.");
       }
@@ -508,6 +618,46 @@ export default function App() {
       setAuthMessage("Error sending message.");
     } finally {
       setChatLoading(false);
+    }
+  };
+
+  // ==================== MEMORY FUNCTIONS ====================
+  const getMemoryDetails = async (memoryId) => {
+    setMemoryLoading(true);
+    try {
+      const res = await self_backend.getMemoryDetails(memoryId);
+      if (isOk(res)) {
+        setMemoryDetails(getOk(res));
+      } else {
+        setAuthMessage(getErr(res) || "Failed to get memory details.");
+      }
+    } catch (err) {
+      console.error("getMemoryDetails error", err);
+      setAuthMessage("Error fetching memory details.");
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
+  // ==================== ANALYSIS FUNCTIONS ====================
+  const analyzeText = async () => {
+    if (!analysisText.trim()) {
+      setAuthMessage("Please enter text to analyze.");
+      return;
+    }
+    setAnalysisLoading(true);
+    try {
+      const res = await self_backend.analyzeText(analysisText);
+      if (isOk(res)) {
+        setAnalysisResult(getOk(res));
+      } else {
+        setAuthMessage(getErr(res) || "Analysis failed.");
+      }
+    } catch (err) {
+      console.error("analyzeText error", err);
+      setAuthMessage("Error analyzing text.");
+    } finally {
+      setAnalysisLoading(false);
     }
   };
 
@@ -680,6 +830,36 @@ export default function App() {
     );
   }
 
+  // Emotion selector component - matches backend variant
+  const EmotionSelector = ({ selected, onChange }) => {
+    return (
+      <div className="emotion-selector">
+        <label>Current Emotion:</label>
+        <div className="emotion-buttons">
+          {emotionOptions.map(emotion => (
+            <button
+              key={emotion.id}
+              type="button"
+              className={`emotion-btn ${selected === emotion.id ? "selected" : ""}`}
+              onClick={() => onChange(emotion.id)}
+            >
+              <span className="emotion-icon">{emotion.icon}</span>
+              <span className="emotion-label">{emotion.label}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`emotion-btn ${selected === null ? "selected" : ""}`}
+            onClick={() => onChange(null)}
+          >
+            <span className="emotion-icon">❌</span>
+            <span className="emotion-label">None</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // ==================== TAB COMPONENTS ====================
   const DashboardTab = () => {
     return (
@@ -702,12 +882,24 @@ export default function App() {
             <div className="stat-card">
               <div className="stat-icon deployment">
                 <svg viewBox="0 0 24 24">
-                  <path d="M12 2L4 7v10l8 5 8-5V7L12 2m0 2.5L18 9v6l-6 3.5L6 15V9l6-3.5M12 6L6 9l6 3 6-3-6-3z"/>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
                 </svg>
               </div>
               <div className="stat-content">
                 <span className="stat-value">{userProfile?.deployed ? "Active" : "Inactive"}</span>
                 <span className="stat-label">Deployment Status</span>
+              </div>
+            </div>
+
+            <div className="stat-card">
+              <div className="stat-icon progress">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                </svg>
+              </div>
+              <div className="stat-content">
+                <span className="stat-value">{safeNumber(userProfile?.trainingProgress) || 0}%</span>
+                <span className="stat-label">Training Progress</span>
               </div>
             </div>
           </div>
@@ -733,7 +925,7 @@ export default function App() {
             <div className="profile-actions">
               <button 
                 className="action-btn primary" 
-                onClick={getNextQuestion} 
+                onClick={() => getNextQuestion()} 
                 disabled={questionsLoading}
               >
                 <svg viewBox="0 0 24 24" className="btn-icon">
@@ -807,12 +999,18 @@ export default function App() {
                 </svg>
                 Key Memories
               </h3>
+              <button 
+                className="view-all-btn"
+                onClick={() => setActiveTab("training")}
+              >
+                View All
+              </button>
             </div>
             
             {userProfile?.memories?.length > 0 ? (
               <div className="memories-list">
                 {userProfile.memories.slice(0, 3).map((m, i) => (
-                  <div key={i} className="memory-item">
+                  <div key={i} className="memory-item" onClick={() => getMemoryDetails(m.id)}>
                     <div className="memory-content">"{m.content}"</div>
                     <div className="memory-meta">
                       <span className={`memory-intensity intensity-${Math.min(5, Math.ceil(safeNumber(m.emotionalWeight) / 2))}`}>
@@ -821,6 +1019,13 @@ export default function App() {
                         </svg>
                         {safeNumber(m.emotionalWeight)} intensity
                       </span>
+                      <div className="memory-emotions">
+                        {m.associatedEmotions?.map((e, idx) => (
+                          <span key={idx} className="emotion-tag">
+                            {emotionOptions.find(opt => opt.variant && opt.variant[e] !== undefined)?.icon || "❓"}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -835,6 +1040,49 @@ export default function App() {
             )}
           </div>
         </div>
+
+        {/* Memory Details Modal */}
+        {memoryDetails && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h3>Memory Details</h3>
+                <button className="close-btn" onClick={() => setMemoryDetails(null)}>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="memory-content">"{memoryDetails.content}"</div>
+                <div className="memory-stats">
+                  <div className="stat-item">
+                    <span className="stat-label">Emotional Weight:</span>
+                    <span className="stat-value">{safeNumber(memoryDetails.emotionalWeight)}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">Access Count:</span>
+                    <span className="stat-value">{safeNumber(memoryDetails.accessCount)}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">Decay Rate:</span>
+                    <span className="stat-value">{(safeNumber(memoryDetails.decayRate) * 100).toFixed(1)}% per day</span>
+                  </div>
+                </div>
+                <div className="memory-emotions">
+                  <h4>Associated Emotions:</h4>
+                  <div className="emotion-tags">
+                    {memoryDetails.associatedEmotions?.map((e, idx) => (
+                      <span key={idx} className="emotion-tag">
+                        {emotionOptions.find(opt => opt.variant && opt.variant[e] !== undefined)?.icon || "❓"} {e}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -900,7 +1148,7 @@ export default function App() {
 
             <button
               className="random-question-btn"
-              onClick={getNextQuestion}
+              onClick={() => getNextQuestion()}
               disabled={questionsLoading}
             >
               <svg viewBox="0 0 24 24" className="btn-icon">
@@ -933,6 +1181,11 @@ export default function App() {
                 />
                 <label htmlFor="answer-text">Your Answer</label>
               </div>
+
+              <EmotionSelector 
+                selected={selectedEmotion} 
+                onChange={setSelectedEmotion} 
+              />
 
               <div className="form-actions">
                 <button
@@ -976,6 +1229,14 @@ export default function App() {
                         <span className="importance">{renderImportanceStars(q.importance)}</span>
                       </div>
                       <p className="question-text">{q.question}</p>
+                      <div className="question-triggers">
+                        {q.triggers?.slice(0, 3).map((t, i) => (
+                          <span key={i} className="trigger-tag">{t}</span>
+                        ))}
+                        {q.triggers?.length > 3 && (
+                          <span className="trigger-more">+{q.triggers.length - 3} more</span>
+                        )}
+                      </div>
                       <div className="question-actions">
                         <button
                           className="answer-btn"
@@ -1043,6 +1304,19 @@ export default function App() {
                     <label htmlFor="custom-category">Category (optional)</label>
                   </div>
 
+                  <div className="form-group floating">
+                    <input
+                      id="custom-triggers"
+                      type="text"
+                      value={customTriggers}
+                      onChange={(e) => setCustomTriggers(e.target.value)}
+                      placeholder="comma,separated,triggers"
+                    />
+                    <label htmlFor="custom-triggers">Trigger Words (optional)</label>
+                  </div>
+                </div>
+
+                <div className="form-row">
                   <div className="form-group">
                     <label className="importance-label">Importance</label>
                     <div className="importance-selector">
@@ -1054,9 +1328,9 @@ export default function App() {
                         onChange={(e) => setCustomImportance(e.target.value)}
                         className="importance-slider"
                       />
-                      {/* <div className="importance-value">
+                      <div className="importance-value">
                         {renderImportanceStars(customImportance)}
-                      </div> */}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1122,7 +1396,7 @@ export default function App() {
         <div className="systems-content">
           <div className="systems-list">
             <div className="list-header">
-              <h3>Available Systems ({deployedSystems.length})</h3>
+              <h3>ECHOSOUL AGENTS({deployedSystems.length})</h3>
             </div>
             
             {deployedSystems.length > 0 ? (
@@ -1153,7 +1427,7 @@ export default function App() {
                 <svg viewBox="0 0 24 24" className="empty-icon">
                   <path d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82 1.89 3.2L12 21.04l3.4 1.47 1.89-3.2 3.61-.82-.34-3.7L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/>
                 </svg>
-                <p>No deployed systems found in the network</p>
+                <p>No deployed Echsoul found in the network</p>
               </div>
             )}
           </div>
@@ -1171,14 +1445,24 @@ export default function App() {
                       <p className="partner-id">ID: {displayPrincipal(selectedSystem.ownerId)}</p>
                     </div>
                   </div>
-                  <button
-                    className="close-chat-btn"
-                    onClick={() => setSelectedSystem(null)}
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                  </button>
+                  <div className="chat-controls">
+                    <label className="context-switch">
+                      <input
+                        type="checkbox"
+                        checked={resetContext}
+                        onChange={(e) => setResetContext(e.target.checked)}
+                      />
+                      <span className="switch-label">New Context</span>
+                    </label>
+                    <button
+                      className="close-chat-btn"
+                      onClick={() => setSelectedSystem(null)}
+                    >
+                      <svg viewBox="0 0 24 24">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="chat-messages">
@@ -1235,7 +1519,7 @@ export default function App() {
                 <svg viewBox="0 0 24 24" className="placeholder-icon">
                   <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
                 </svg>
-                <h3>Select a System to Chat</h3>
+                <h3>Select an EchoSoul Chat</h3>
                 <p>Choose from the list of deployed digital consciousnesses to start a conversation</p>
               </div>
             )}
@@ -1244,6 +1528,54 @@ export default function App() {
       </div>
     );
   };
+
+  const AnalysisTab = () => (
+    <div className="analysis-container">
+      <h2 className="analysis-title">
+        <svg viewBox="0 0 24 24" className="title-icon">
+          <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+        </svg>
+        Personality Analysis
+      </h2>
+
+      <div className="analysis-content">
+        <div className="analysis-input">
+          <div className="form-group floating">
+            <textarea
+              id="analysis-text"
+              value={analysisText}
+              onChange={(e) => setAnalysisText(e.target.value)}
+              rows={8}
+              placeholder="Enter text to analyze for personality traits, emotions, and communication style"
+            />
+            <label htmlFor="analysis-text">Text to Analyze</label>
+          </div>
+          <button
+            className="analyze-btn"
+            onClick={analyzeText}
+            disabled={analysisLoading || !analysisText.trim()}
+          >
+            {analysisLoading ? (
+              <span className="btn-spinner"></span>
+            ) : (
+              "Analyze Text"
+            )}
+          </button>
+        </div>
+
+        {analysisResult && (
+          <div className="analysis-result">
+            <h3 className="result-title">Analysis Results</h3>
+            <div className="result-content">
+              {analysisResult.split("\n").map((line, i) => (
+                <p key={i}>{line}</p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   const SettingsTab = () => (
     <div className="settings-container">
@@ -1287,6 +1619,66 @@ export default function App() {
           </div>
         </div>
 
+        <div className="preferences-section">
+          <h3 className="section-title">Communication Preferences</h3>
+          
+          <div className="preference-group">
+            <label>Preferred Style</label>
+            <div className="style-buttons">
+              {Object.entries(communicationStyleIcons).map(([style, icon]) => (
+                <button
+                  key={style}
+                  type="button"
+                  className={`style-btn ${preferredStyle === style ? "selected" : ""}`}
+                  onClick={() => setPreferredStyle(style)}
+                >
+                  <span className="style-icon">{icon}</span>
+                  <span className="style-label">{style}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="preference-row">
+            <div className="preference-item">
+              <label>Response Depth</label>
+              <div className="slider-container">
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  value={depthLevel}
+                  onChange={(e) => setDepthLevel(Number(e.target.value))}
+                  className="depth-slider"
+                />
+                <div className="slider-labels">
+                  <span>Brief</span>
+                  <span>Balanced</span>
+                  <span>Detailed</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="preference-item">
+              <label>Formality Level</label>
+              <div className="slider-container">
+                <input
+                  type="range"
+                  min="1"
+                  max="5"
+                  value={formality}
+                  onChange={(e) => setFormality(Number(e.target.value))}
+                  className="formality-slider"
+                />
+                <div className="slider-labels">
+                  <span>Casual</span>
+                  <span>Formal</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="form-actions">
           <button type="submit" className="save-btn" disabled={profileLoading}>
             {profileLoading ? (
@@ -1323,6 +1715,24 @@ export default function App() {
                 : userProfile?.id
                   ? userProfile.id.toString().slice(0, 12) + "..."
                   : "-"}
+            </span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Created:</span>
+            <span className="info-value">
+              {userProfile?.createdAt ? new Date(Number(userProfile.createdAt)).toLocaleDateString() : "-"}
+            </span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Last Updated:</span>
+            <span className="info-value">
+              {userProfile?.lastUpdated ? new Date(Number(userProfile.lastUpdated)).toLocaleDateString() : "-"}
+            </span>
+          </div>
+          <div className="info-item">
+            <span className="info-label">Training Progress:</span>
+            <span className="info-value">
+              {safeNumber(userProfile?.trainingProgress) || 0}%
             </span>
           </div>
         </div>
@@ -1367,120 +1777,83 @@ export default function App() {
       {/* Authentication modal */}
       {!isAuthenticated ? (
         <AuthModal
-          onRegister={async ({ username, email, password }) => {
-            setAuthOperationLoading(true);
-            const res = await registerUser({ username, email, password });
-            setAuthOperationLoading(false);
-            return res;
-          }}
-          onLogin={async ({ username, password }) => {
-            setAuthOperationLoading(true);
-            const res = await loginUser({ username, password });
-            setAuthOperationLoading(false);
-            return res;
-          }}
+          onRegister={registerUser}
+          onLogin={loginUser}
         />
       ) : (
         <>
-          {/* Main app layout */}
-          <header className="app-header">
-            <div className="header-content">
-              <div className="logo-container">
+          {/* Floating Navigation */}
+          <nav className="floating-nav">
+            <div className="nav-container">
+              <div className="nav-logo">
                 <img 
-                  src={createEchosoulLogo(40)} 
+                  src={createEchosoulLogo(30)} 
                   alt="logo" 
                   className="logo-image"
                 />
-                <h1 className="logo-text">Digital Consciousness</h1>
               </div>
-
-              <nav className="main-nav">
-
-
-<button 
-  className={`nav-btn ${activeTab === "dashboard" ? "active" : ""}`}
-  onClick={() => setActiveTab("dashboard")}
->
-  <svg viewBox="0 0 24 24" className="nav-icon">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-  </svg>
-  Dashboard
-</button>
-
-<button 
-  className={`nav-btn ${activeTab === "training" ? "active" : ""}`}
-  onClick={() => setActiveTab("training")}
->
-  <svg viewBox="0 0 24 24" className="nav-icon">
-    <path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
-  </svg>
-  Training
-</button>
-
-<button 
-  className={`nav-btn ${activeTab === "systems" ? "active" : ""}`}
-  onClick={() => setActiveTab("systems")}
->
-  <svg viewBox="0 0 24 24" className="nav-icon">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
-  </svg>
-  Systems
-</button>
-
-<button 
-  className={`nav-btn ${activeTab === "ai" ? "active" : ""}`}
-  onClick={() => setActiveTab("ai")}
-  disabled
-  title="Coming soon"
->
-  <svg viewBox="0 0 24 24" className="nav-icon">
-    <path d="M21 11.5c0 4.14-3.36 7.5-7.5 7.5-1.04 0-2.04-.21-2.95-.6l-4.16 2.37.35-4.14C5.3 14.78 5 13.17 5 11.5 5 7.36 8.36 4 12.5 4c3.09 0 5.72 1.93 6.8 4.64l2.2-.84C20.2 4.85 16.66 2 12.5 2 6.98 2 2.5 6.48 2.5 12S6.98 22 12.5 22c1.5 0 2.92-.3 4.21-.85l2.94 1.67-.75-4.67c1.6-1.39 2.6-3.41 2.6-5.65z"/>
-  </svg>
-  Echosoul AI
-  <span className="coming-soon-badge">Soon</span>
-</button>
-
-<button 
-  className={`nav-btn ${activeTab === "savings" ? "active" : ""}`}
-  onClick={() => setActiveTab("savings")}
-  disabled
-  title="Coming soon"
->
-  <svg viewBox="0 0 24 24" className="nav-icon">
-    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
-  </svg>
-  Savings
-  <span className="coming-soon-badge">Soon</span>
-</button>
-
-<button 
-  className={`nav-btn ${activeTab === "settings" ? "active" : ""}`}
-  onClick={() => setActiveTab("settings")}
->
-  <svg viewBox="0 0 24 24" className="nav-icon">
-    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
-  </svg>
-  Settings
-</button>
-
-              </nav>
-
-              <div className="user-controls">
-                <div className="user-profile">
-                  <div className="user-avatar">
-                    <img src={profilePicSrc} alt="Profile" />
-                  </div>
-                  <span className="user-name">{userProfile?.username}</span>
-                </div>
-                <button className="logout-btn" onClick={handleLogout}>
-                  <svg viewBox="0 0 24 24">
-                    <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+              
+              <div className="nav-links">
+                <button 
+                  className={`nav-link ${activeTab === "dashboard" ? "active" : ""}`}
+                  onClick={() => setActiveTab("dashboard")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
                   </svg>
+                  <span className="nav-label">Dashboard</span>
+                </button>
+
+                <button 
+                  className={`nav-link ${activeTab === "training" ? "active" : ""}`}
+                  onClick={() => setActiveTab("training")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M12 3L1 9l11 6 9-4.91V17h2V9M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/>
+                  </svg>
+                  <span className="nav-label">Training</span>
+                </button>
+
+                <button 
+                  className={`nav-link ${activeTab === "systems" ? "active" : ""}`}
+                  onClick={() => setActiveTab("systems")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"/>
+                  </svg>
+                  <span className="nav-label">EchoSoul-Agents</span>
+                </button>
+
+                <button 
+                  className={`nav-link ${activeTab === "analysis" ? "active" : ""}`}
+                  onClick={() => setActiveTab("analysis")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+                  </svg>
+                  <span className="nav-label">Analysis</span>
+                </button>
+
+                <button 
+                  className={`nav-link ${activeTab === "settings" ? "active" : ""}`}
+                  onClick={() => setActiveTab("settings")}
+                >
+                  <svg viewBox="0 0 24 24" className="nav-icon">
+                    <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                  </svg>
+                  <span className="nav-label">Settings</span>
                 </button>
               </div>
-            </div>
-          </header>
 
+              <div className="user-profile">
+                <div className="user-avatar">
+                  <img src={profilePicSrc} alt="Profile" />
+                </div>
+              </div>
+            </div>
+          </nav>
+
+          {/* Main content */}
           <main className="app-main">
             {authMessage && (
               <div className={`global-message ${authMessage.includes("success") ? "success" : "error"}`}>
@@ -1498,26 +1871,25 @@ export default function App() {
             {activeTab === "dashboard" && <DashboardTab />}
             {activeTab === "training" && <TrainingTab />}
             {activeTab === "systems" && <SystemsTab />}
+            {activeTab === "analysis" && <AnalysisTab />}
             {activeTab === "settings" && <SettingsTab />}
           </main>
 
-      <footer className="app-footer">
-        <div className="footer-content">
-          <div className="footer-brand">
-            <span className="footer-icon">♾️</span>
-            <span>Echosoul • Digital Consciousness</span>
-          </div>
-          <div className="footer-links">
-            <a href="#privacy" className="footer-link">Privacy</a>
-            <span className="footer-divider">|</span>
-            <a href="#terms" className="footer-link">Terms</a>
-            <span className="footer-divider">|</span>
-            <a href="#contact" className="footer-link">Contact</a>
-          </div>
-        </div>
-      </footer>
-
-
+          <footer className="app-footer">
+            <div className="footer-content">
+              <div className="footer-brand">
+                <span className="footer-icon">♾️</span>
+                <span>EchoSoul • Digital Consciousness</span>
+              </div>
+              <div className="footer-links">
+                <a href="#privacy" className="footer-link">Privacy</a>
+                <span className="footer-divider">|</span>
+                <a href="#terms" className="footer-link">Terms</a>
+                <span className="footer-divider">|</span>
+                <a href="#contact" className="footer-link">Contact</a>
+              </div>
+            </div>
+          </footer>
         </>
       )}
     </div>

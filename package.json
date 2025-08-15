@@ -17,6 +17,19 @@
   ],
   "dependencies": {
     "@dfinity/agent": "^3.2.0",
-    "@dfinity/auth-client": "^3.2.0"
+    "@dfinity/auth-client": "^3.2.1",
+    "@dfinity/principal": "^3.2.1",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.1",
+    "@mui/material": "^7.3.1",
+    "@vitejs/plugin-react": "^5.0.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "node-fetch": "^3.3.2",
+    "vite": "^7.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.2.1"
   }
 }
