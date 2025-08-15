@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Principal } from "@dfinity/principal";
 import { self_backend } from "../../declarations/self_backend";
 import "./index.scss";
+import { chatWithGPT } from "./api/openai";
 
 // ==================== UTILITIES ====================
 const isOk = (res) => res && Object.prototype.hasOwnProperty.call(res, "ok");
@@ -578,66 +579,84 @@ export default function App() {
     setResetContext(false);
   };
 
-  const sendChat = async (e) => {
-    e.preventDefault();
-    if (!selectedSystem) {
-      setAuthMessage("Please select a system first.");
-      return;
-    }
-    if (!chatMessage.trim()) {
-      setAuthMessage("Please enter a message.");
-      return;
-    }
 
-    setChatLoading(true);
-    try {
-      let owner = selectedSystem.ownerId;
-      if (typeof owner === "string") {
-        try {
-          owner = Principal.fromText(owner);
-        } catch (e) {
-          // leave as string if not parsable
-        }
+const sendChat = async (e) => {
+  e.preventDefault();
+
+  if (!selectedSystem) {
+    return setAuthMessage("Please select a system first.");
+  }
+  if (!chatMessage.trim()) {
+    return setAuthMessage("Please enter a message.");
+  }
+
+  setChatLoading(true);
+
+  const userText = chatMessage.trim();
+  const resetFlag = resetContext;
+
+  // Add user message to UI immediately
+  setChatHistory(h => [
+    ...h,
+    { fromMe: true, text: userText, timestamp: new Date().toISOString() },
+  ]);
+
+  try {
+    let owner = selectedSystem.ownerId;
+    if (typeof owner === "string") {
+      try {
+        owner = Principal.fromText(owner);
+      } catch {
+        console.warn("Invalid owner principal format");
       }
+    }
 
-      const res = await self_backend.chatWithSystem(owner, chatMessage, resetContext);
-      if (isOk(res)) {
-        const reply = getOk(res);
-        setChatHistory((h) => [
-          ...h,
-          { fromMe: true, text: chatMessage, timestamp: new Date().toISOString() },
-          { fromMe: false, text: reply, timestamp: new Date().toISOString() },
-        ]);
-        setChatMessage("");
-        setResetContext(false);
+    // Prepare GPT fallback
+    const getGptFallback = async () => {
+      const gptMessages = [
+        ...chatHistory.map(msg => ({
+          role: msg.fromMe ? "user" : "assistant",
+          content: msg.text
+        })),
+        { role: "user", content: userText }
+      ];
+      return await chatWithGPT(gptMessages);
+    };
+
+    // Send to backend
+    const res = await self_backend.chatWithSystem(owner, userText, resetFlag);
+
+    let botReply;
+    if (isOk(res)) {
+      const reply = getOk(res);
+      // Check for both special fallback tokens
+      if (reply && reply !== "~fallback~" && reply !== "__NEED_GPT__") {
+        botReply = reply;
       } else {
-        setAuthMessage(getErr(res) || "Chat failed.");
+        botReply = await getGptFallback();
       }
-    } catch (err) {
-      console.error("sendChat error", err);
-      setAuthMessage("Error sending message.");
-    } finally {
-      setChatLoading(false);
+    } else {
+      botReply = await getGptFallback();
     }
-  };
 
-  // ==================== MEMORY FUNCTIONS ====================
-  const getMemoryDetails = async (memoryId) => {
-    setMemoryLoading(true);
-    try {
-      const res = await self_backend.getMemoryDetails(memoryId);
-      if (isOk(res)) {
-        setMemoryDetails(getOk(res));
-      } else {
-        setAuthMessage(getErr(res) || "Failed to get memory details.");
-      }
-    } catch (err) {
-      console.error("getMemoryDetails error", err);
-      setAuthMessage("Error fetching memory details.");
-    } finally {
-      setMemoryLoading(false);
-    }
-  };
+    // Add bot reply to UI
+    setChatHistory(h => [
+      ...h,
+      { fromMe: false, text: botReply, timestamp: new Date().toISOString() },
+    ]);
+
+    // Reset state
+    setChatMessage("");
+    setResetContext(false);
+
+  } catch (err) {
+    console.error("sendChat error", err);
+    setAuthMessage("Error sending message.");
+  } finally {
+    setChatLoading(false);
+  }
+};
+
 
   // ==================== ANALYSIS FUNCTIONS ====================
   const analyzeText = async () => {

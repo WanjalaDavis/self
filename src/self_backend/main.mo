@@ -497,7 +497,6 @@ public shared (msg) func getNextQuestion(context : ?Text) : async QuestionResult
 };
 
 
-
     // Submit Training Answer with optional emotional context
     public shared (msg) func submitAnswer(
         questionId : QuestionId, 
@@ -658,51 +657,63 @@ public shared (msg) func getNextQuestion(context : ?Text) : async QuestionResult
         Buffer.toArray(buffer)
     };
 
-    // Chat with Deployed System (with context tracking)
-    public shared (_msg) func chatWithSystem(
-        ownerId : UserId, 
-        message : ChatMessage,
-        resetContext : Bool
-    ) : async ChatResult {
-        switch (usersMap.get(ownerId)) {
-            case (?user) {
-                if (not user.deployed) {
-                    return #err("This user hasn't deployed their system yet");
-                };
-
-                // Get or reset conversation context
-                let currentContext = if (resetContext or user.conversationHistory.size() == 0) {
-                    {
-                        recentTopics = [];
-                        currentEmotion = analyzeEmotion(message);
-                        stylePreference = user.preferences.preferredStyle;
-                    }
-                } else {
-                    updateContext(user.conversationHistory[0], message)
-                };
-
-                let response = generateAdvancedResponse(user, message, currentContext);
-
-                // Update user with new conversation context
-                let updatedHistory = if (user.conversationHistory.size() >= 5) {
-                    // Keep only the 5 most recent contexts
-                    Array.append([currentContext], Array.take(user.conversationHistory, 4))
-                } else {
-                    Array.append([currentContext], user.conversationHistory)
-                };
-
-                let updatedUser : UserProfile = {
-                    user with
-                    conversationHistory = updatedHistory;
-                    lastUpdated = Time.now()
-                };
-
-                usersMap.put(ownerId, updatedUser);
-                #ok(response);
+// Chat with Deployed System (with context tracking)
+public shared (_msg) func chatWithSystem(
+    ownerId : UserId, 
+    message : ChatMessage,
+    resetContext : Bool
+) : async ChatResult {
+    switch (usersMap.get(ownerId)) {
+        case (?user) {
+            if (not user.deployed) {
+                return #err("This user hasn't deployed their system yet");
             };
-            case null { return #err("User not found") };
-        }
-    };
+
+            // Get or reset conversation context
+            let currentContext = if (resetContext or user.conversationHistory.size() == 0) {
+                {
+                    recentTopics = [];
+                    currentEmotion = analyzeEmotion(message);
+                    stylePreference = user.preferences.preferredStyle;
+                }
+            } else {
+                updateContext(user.conversationHistory[0], message)
+            };
+
+            // First try to get a trained match
+            let maybeTrained = matchKnowledgeBase(user, message, currentContext);
+
+            let response = switch (maybeTrained) {
+                case (?_match) {
+                    // Found a relevant trained question
+                    generateAdvancedResponse(user, message, currentContext);
+                };
+                case null {
+                    // No good trained answer found — signal frontend to use GPT
+                    "__NEED_GPT__"
+                };
+            };
+
+            // Update conversation history
+            let updatedHistory = if (user.conversationHistory.size() >= 5) {
+                Array.append([currentContext], Array.take(user.conversationHistory, 4))
+            } else {
+                Array.append([currentContext], user.conversationHistory)
+            };
+
+            let updatedUser : UserProfile = {
+                user with
+                conversationHistory = updatedHistory;
+                lastUpdated = Time.now()
+            };
+            usersMap.put(ownerId, updatedUser);
+
+            #ok(response);
+        };
+        case null { return #err("User not found") };
+    }
+};
+
 
     // Provide feedback on response quality
     public shared (_msg) func provideFeedback(
