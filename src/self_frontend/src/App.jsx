@@ -9,8 +9,6 @@ const isOk = (res) => res && Object.prototype.hasOwnProperty.call(res, "ok");
 const getErr = (res) => (res && res.err) || (res && res["err"]) || null;
 const getOk = (res) => (res && res.ok) || (res && res["ok"]) || null;
 
-
-
 // Candid/DFINITY JS wrapper: optional is encoded as an array
 // - [] => None
 // - [value] => Some(value)
@@ -153,7 +151,10 @@ const emotionOptions = [
   { id: "angry", label: "Angry", icon: "😠", variant: { angry: "😠" } },
   { id: "neutral", label: "Neutral", icon: "😐", variant: { neutral: "😐" } },
   { id: "excited", label: "Excited", icon: "🤩", variant: { excited: "🤩" } },
-  { id: "confused", label: "Confused", icon: "😕", variant: { confused: "😕" } }
+  { id: "confused", label: "Confused", icon: "😕", variant: { confused: "😕" } },
+  { id: "anxious", label: "Anxious", icon: "😰", variant: { anxious: "😰" } },
+  { id: "proud", label: "Proud", icon: "🦚", variant: { proud: "🦚" } },
+  { id: "grateful", label: "Grateful", icon: "🙏", variant: { grateful: "🙏" } }
 ];
 
 const communicationStyleIcons = {
@@ -162,8 +163,19 @@ const communicationStyleIcons = {
   technical: "💻",
   humorous: "🤡",
   empathetic: "🤗",
-  balanced: "⚖️"
+  balanced: "⚖️",
+  creative: "🎨",
+  analytical: "📊"
 };
+
+// Personality archetypes
+const personalityArchetypes = [
+  { id: "thinker", name: "The Thinker", icon: "🤔", desc: "Analytical, logical, and detail-oriented" },
+  { id: "creator", name: "The Creator", icon: "🎨", desc: "Imaginative, innovative, and expressive" },
+  { id: "caregiver", name: "The Caregiver", icon: "🤱", desc: "Compassionate, nurturing, and supportive" },
+  { id: "explorer", name: "The Explorer", icon: "🧭", desc: "Adventurous, curious, and independent" },
+  { id: "visionary", name: "The Visionary", icon: "🔮", desc: "Insightful, idealistic, and future-focused" }
+];
 
 // ==================== MAIN APPLICATION ====================
 export default function App() {
@@ -184,6 +196,7 @@ export default function App() {
   const [submitAnswerLoading, setSubmitAnswerLoading] = useState(false);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
 
   // --- Training state
   const [questions, setQuestions] = useState([]);
@@ -213,11 +226,23 @@ export default function App() {
   const [preferredStyle, setPreferredStyle] = useState("balanced");
   const [depthLevel, setDepthLevel] = useState(2);
   const [formality, setFormality] = useState(3);
+  const [personalityArchetype, setPersonalityArchetype] = useState("");
 
   // --- Memory and analysis
   const [memoryDetails, setMemoryDetails] = useState(null);
   const [analysisText, setAnalysisText] = useState("");
   const [analysisResult, setAnalysisResult] = useState(null);
+  
+  // --- Stats and insights
+  const [userStats, setUserStats] = useState({
+    totalAnswers: 0,
+    avgAnswerLength: 0,
+    mostCommonEmotion: "",
+    knowledgeGrowth: 0,
+    activeDays: 0
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [insights, setInsights] = useState([]);
 
   // Profile picture preview effect
   useEffect(() => {
@@ -252,12 +277,13 @@ export default function App() {
           setPreferredStyle(user?.preferences?.preferredStyle || "balanced");
           setDepthLevel(user?.preferences?.depthLevel || 2);
           setFormality(user?.preferences?.formality || 3);
+          setPersonalityArchetype(user?.preferences?.personalityArchetype || "");
         }
         await refreshQuestions();
-        // fetchDeployedSystems may be defined elsewhere in your file
-        if (typeof fetchDeployedSystems === "function") {
-          await fetchDeployedSystems();
-        }
+        await fetchDeployedSystems();
+        await fetchUserStats();
+        await fetchRecentActivity();
+        await generateInsights();
       } catch (err) {
         console.warn("bootstrap failed", err);
       } finally {
@@ -346,6 +372,7 @@ export default function App() {
         setPreferredStyle(user?.preferences?.preferredStyle || "balanced");
         setDepthLevel(user?.preferences?.depthLevel || 2);
         setFormality(user?.preferences?.formality || 3);
+        setPersonalityArchetype(user?.preferences?.personalityArchetype || "");
       } else {
         console.warn("refreshDashboard warn", getErr(res));
       }
@@ -379,16 +406,15 @@ export default function App() {
       const styleOpt = preferredStyle ? opt(preferredStyle) : [];
       const depthOpt = (depthLevel !== undefined && depthLevel !== null) ? opt(depthLevel) : [];
       const formalityOpt = (formality !== undefined && formality !== null) ? opt(formality) : [];
-
-      // debug:
-      // console.log("updateProfile sending:", { bioOpt, picOpt, styleOpt, depthOpt, formalityOpt });
+      const archetypeOpt = personalityArchetype ? opt(personalityArchetype) : [];
 
       const res = await self_backend.updateProfile(
         bioOpt,
         picOpt,
         styleOpt,
         depthOpt,
-        formalityOpt
+        formalityOpt,
+        archetypeOpt
       );
 
       if (isOk(res)) {
@@ -430,7 +456,6 @@ export default function App() {
       // Normalize context: use undefined/empty -> None, else Some(string)
       const ctx = (typeof context === "string" && context.trim() !== "") ? context.trim() : undefined;
 
-      // debug: console.log("getNextQuestion sending ctx:", JSON.stringify(opt(ctx)));
       const res = await self_backend.getNextQuestion(opt(ctx));
       if (isOk(res)) {
         setCurrentQuestion(getOk(res));
@@ -455,7 +480,6 @@ export default function App() {
 
     setSubmitAnswerLoading(true);
     try {
-      // Properly construct emotion variant and wrap in opt (Some([...]) -> [variant], None -> [])
       const emotionVariant = selectedEmotion
         ? (typeof selectedEmotion === "string"
             ? (emotionOptions.find((em) => em.id === selectedEmotion) || {}).variant
@@ -465,8 +489,6 @@ export default function App() {
       const emotionOpt = emotionVariant ? opt(emotionVariant) : [];
 
       const qid = safeNumber(currentQuestion.id);
-
-      // debug: console.log("submitAnswer sending:", { qid, answerText, emotionOpt });
 
       const res = await self_backend.submitAnswer(
         qid,
@@ -479,6 +501,9 @@ export default function App() {
         // refresh state
         await refreshQuestions();
         await refreshDashboard();
+        await fetchUserStats();
+        await fetchRecentActivity();
+        await generateInsights();
         setCurrentQuestion(null);
         setSelectedEmotion(null);
         setAnswerText("");
@@ -579,84 +604,82 @@ export default function App() {
     setResetContext(false);
   };
 
+  const sendChat = async (e) => {
+    e.preventDefault();
 
-const sendChat = async (e) => {
-  e.preventDefault();
-
-  if (!selectedSystem) {
-    return setAuthMessage("Please select a system first.");
-  }
-  if (!chatMessage.trim()) {
-    return setAuthMessage("Please enter a message.");
-  }
-
-  setChatLoading(true);
-
-  const userText = chatMessage.trim();
-  const resetFlag = resetContext;
-
-  // Add user message to UI immediately
-  setChatHistory(h => [
-    ...h,
-    { fromMe: true, text: userText, timestamp: new Date().toISOString() },
-  ]);
-
-  try {
-    let owner = selectedSystem.ownerId;
-    if (typeof owner === "string") {
-      try {
-        owner = Principal.fromText(owner);
-      } catch {
-        console.warn("Invalid owner principal format");
-      }
+    if (!selectedSystem) {
+      return setAuthMessage("Please select a system first.");
+    }
+    if (!chatMessage.trim()) {
+      return setAuthMessage("Please enter a message.");
     }
 
-    // Prepare GPT fallback
-    const getGptFallback = async () => {
-      const gptMessages = [
-        ...chatHistory.map(msg => ({
-          role: msg.fromMe ? "user" : "assistant",
-          content: msg.text
-        })),
-        { role: "user", content: userText }
-      ];
-      return await chatWithGPT(gptMessages);
-    };
+    setChatLoading(true);
 
-    // Send to backend
-    const res = await self_backend.chatWithSystem(owner, userText, resetFlag);
+    const userText = chatMessage.trim();
+    const resetFlag = resetContext;
 
-    let botReply;
-    if (isOk(res)) {
-      const reply = getOk(res);
-      // Check for both special fallback tokens
-      if (reply && reply !== "~fallback~" && reply !== "__NEED_GPT__") {
-        botReply = reply;
+    // Add user message to UI immediately
+    setChatHistory(h => [
+      ...h,
+      { fromMe: true, text: userText, timestamp: new Date().toISOString() },
+    ]);
+
+    try {
+      let owner = selectedSystem.ownerId;
+      if (typeof owner === "string") {
+        try {
+          owner = Principal.fromText(owner);
+        } catch {
+          console.warn("Invalid owner principal format");
+        }
+      }
+
+      // Prepare GPT fallback
+      const getGptFallback = async () => {
+        const gptMessages = [
+          ...chatHistory.map(msg => ({
+            role: msg.fromMe ? "user" : "assistant",
+            content: msg.text
+          })),
+          { role: "user", content: userText }
+        ];
+        return await chatWithGPT(gptMessages);
+      };
+
+      // Send to backend
+      const res = await self_backend.chatWithSystem(owner, userText, resetFlag);
+
+      let botReply;
+      if (isOk(res)) {
+        const reply = getOk(res);
+        // Check for both special fallback tokens
+        if (reply && reply !== "~fallback~" && reply !== "__NEED_GPT__") {
+          botReply = reply;
+        } else {
+          botReply = await getGptFallback();
+        }
       } else {
         botReply = await getGptFallback();
       }
-    } else {
-      botReply = await getGptFallback();
+
+      // Add bot reply to UI
+      setChatHistory(h => [
+        ...h,
+        { fromMe: false, text: botReply, timestamp: new Date().toISOString() },
+      ]);
+
+      // Reset state
+      setChatMessage("");
+      setResetContext(false);
+
+    } catch (err) {
+      console.error("sendChat error", err);
+      setAuthMessage("Error sending message.");
+    } finally {
+      setChatLoading(false);
     }
-
-    // Add bot reply to UI
-    setChatHistory(h => [
-      ...h,
-      { fromMe: false, text: botReply, timestamp: new Date().toISOString() },
-    ]);
-
-    // Reset state
-    setChatMessage("");
-    setResetContext(false);
-
-  } catch (err) {
-    console.error("sendChat error", err);
-    setAuthMessage("Error sending message.");
-  } finally {
-    setChatLoading(false);
-  }
-};
-
+  };
 
   // ==================== ANALYSIS FUNCTIONS ====================
   const analyzeText = async () => {
@@ -677,6 +700,66 @@ const sendChat = async (e) => {
       setAuthMessage("Error analyzing text.");
     } finally {
       setAnalysisLoading(false);
+    }
+  };
+
+  // ==================== STATS & INSIGHTS ====================
+  const fetchUserStats = async () => {
+    setStatsLoading(true);
+    try {
+      const res = await self_backend.getUserStats();
+      if (isOk(res)) {
+        setUserStats(getOk(res));
+      } else {
+        console.warn("Failed to fetch user stats");
+      }
+    } catch (err) {
+      console.error("fetchUserStats error", err);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const fetchRecentActivity = async () => {
+    try {
+      const res = await self_backend.getRecentActivity();
+      if (isOk(res)) {
+        setRecentActivity(getOk(res));
+      } else {
+        console.warn("Failed to fetch recent activity");
+      }
+    } catch (err) {
+      console.error("fetchRecentActivity error", err);
+    }
+  };
+
+  const generateInsights = async () => {
+    try {
+      const res = await self_backend.generateInsights();
+      if (isOk(res)) {
+        setInsights(getOk(res));
+      } else {
+        console.warn("Failed to generate insights");
+      }
+    } catch (err) {
+      console.error("generateInsights error", err);
+    }
+  };
+
+  const getMemoryDetails = async (memoryId) => {
+    setMemoryLoading(true);
+    try {
+      const res = await self_backend.getMemoryDetails(memoryId);
+      if (isOk(res)) {
+        setMemoryDetails(getOk(res));
+      } else {
+        setAuthMessage(getErr(res) || "Failed to fetch memory details.");
+      }
+    } catch (err) {
+      console.error("getMemoryDetails error", err);
+      setAuthMessage("Error fetching memory details.");
+    } finally {
+      setMemoryLoading(false);
     }
   };
 
@@ -885,6 +968,8 @@ const sendChat = async (e) => {
       <div className="dashboard-container">
         <div className="dashboard-header">
           <h2 className="dashboard-title">EchoSoul- Digital Consciousness</h2>
+          <p className="dashboard-subtitle">Your personalized AI personality dashboard</p>
+          
           <div className="dashboard-stats">
             <div className="stat-card">
               <div className="stat-icon knowledge">
@@ -921,142 +1006,264 @@ const sendChat = async (e) => {
                 <span className="stat-label">Training Progress</span>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="profile-card">
-          <div className="profile-avatar-container">
-            <div className="profile-avatar">
-              <img src={profilePicSrc} alt="Profile" className="avatar-image" />
-              <label className="avatar-edit">
-                <input type="file" accept="image/*" onChange={handleProfilePicChange} />
+            <div className="stat-card">
+              <div className="stat-icon memory">
                 <svg viewBox="0 0 24 24">
-                  <path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/>
-                </svg>
-              </label>
-            </div>
-          </div>
-
-          <div className="profile-info">
-            <h3 className="profile-name">{userProfile?.username}</h3>
-            <p className="profile-bio">{userProfile?.bio || "No bio yet. Add one in Settings."}</p>
-            
-            <div className="profile-actions">
-              <button 
-                className="action-btn primary" 
-                onClick={() => getNextQuestion()} 
-                disabled={questionsLoading}
-              >
-                <svg viewBox="0 0 24 24" className="btn-icon">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
-                </svg>
-                Train Now
-              </button>
-
-              <button
-                className={`action-btn ${userProfile?.deployed ? "secondary" : "primary"}`}
-                onClick={handleDeploy}
-                disabled={userProfile?.deployed || deployLoading || safeNumber(userProfile?.knowledgeBase?.length) < 10}
-                title={userProfile?.deployed ? "Already deployed" : undefined}
-              >
-                <svg viewBox="0 0 24 24" className="btn-icon">
-                  <path d="M13 19v-4h3l-4-5-4 5h3v4h2m3-15v3h-1V5H9v2H8V4h8m-.9 15.5c0 .28.22.5.5.5s.5-.22.5-.5-.22-.5-.5-.5-.5.22-.5.5M13 10h-2V9h2v1m3-3h-8v11h8V7z"/>
-                </svg>
-                {userProfile?.deployed
-                  ? "Deployed"
-                  : safeNumber(userProfile?.knowledgeBase?.length) < 10
-                    ? "Need 10 Answers"
-                    : "Deploy System"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="dashboard-grid">
-          <div className="traits-card">
-            <div className="card-header">
-              <h3 className="card-title">
-                <svg viewBox="0 0 24 24" className="card-icon">
-                  <path d="M12 3a9 9 0 0 0-9 9c0 1.5.4 3 1.1 4.3.1.2.1.5 0 .8-.1.2-.3.4-.5.5l-2.5 2.5c-.4.4-.4 1 0 1.4.4.4 1 .4 1.4 0l2.5-2.5c.2-.2.4-.3.5-.5.3-.1.5-.1.8 0 1.3.8 2.8 1.1 4.3 1.1 5 0 9-4 9-9s-4-9-9-9m0 4c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m-4 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m8 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1M7 12c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m10 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m-4 4c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1z"/>
-                </svg>
-                Personality Traits
-              </h3>
-            </div>
-            
-            {userProfile?.traits?.length > 0 ? (
-              <div className="traits-grid">
-                {userProfile.traits.map((t, idx) => (
-                  <div key={idx} className="trait-item">
-                    <div className="trait-header">
-                      <span className="trait-name">{t.name}</span>
-                      <span className="trait-value">{safeNumber(t.strength)}/10</span>
-                    </div>
-                    <div className="progress-container">
-                      <div 
-                        className="progress-fill" 
-                        style={{ width: `${safeNumber(t.strength) * 10}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-state">
-                <svg viewBox="0 0 24 24" className="empty-icon">
-                  <path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
-                </svg>
-                <p>Answer personality questions to develop your traits.</p>
-              </div>
-            )}
-          </div>
-
-          <div className="memories-card">
-            <div className="card-header">
-              <h3 className="card-title">
-                <svg viewBox="0 0 24 24" className="card-icon">
                   <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"/>
                 </svg>
-                Key Memories
-              </h3>
-              <button 
-                className="view-all-btn"
-                onClick={() => setActiveTab("training")}
-              >
-                View All
-              </button>
+              </div>
+              <div className="stat-content">
+                <span className="stat-value">{safeNumber(userProfile?.memories?.length) || 0}</span>
+                <span className="stat-label">Memories</span>
+              </div>
             </div>
-            
-            {userProfile?.memories?.length > 0 ? (
-              <div className="memories-list">
-                {userProfile.memories.slice(0, 3).map((m, i) => (
-                  <div key={i} className="memory-item" onClick={() => getMemoryDetails(m.id)}>
-                    <div className="memory-content">"{m.content}"</div>
-                    <div className="memory-meta">
-                      <span className={`memory-intensity intensity-${Math.min(5, Math.ceil(safeNumber(m.emotionalWeight) / 2))}`}>
-                        <svg viewBox="0 0 24 24">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                        {safeNumber(m.emotionalWeight)} intensity
-                      </span>
-                      <div className="memory-emotions">
-                        {m.associatedEmotions?.map((e, idx) => (
-                          <span key={idx} className="emotion-tag">
-                            {emotionOptions.find(opt => opt.variant && opt.variant[e] !== undefined)?.icon || "❓"}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+          </div>
+        </div>
+
+        <div className="dashboard-content">
+          <div className="dashboard-main">
+            <div className="profile-card">
+              <div className="profile-avatar-container">
+                <div className="profile-avatar">
+                  <img src={profilePicSrc} alt="Profile" className="avatar-image" />
+                  <label className="avatar-edit">
+                    <input type="file" accept="image/*" onChange={handleProfilePicChange} />
+                    <svg viewBox="0 0 24 24">
+                      <path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/>
+                    </svg>
+                  </label>
+                </div>
+              </div>
+
+              <div className="profile-info">
+                <h3 className="profile-name">{userProfile?.username}</h3>
+                <p className="profile-bio">{userProfile?.bio || "No bio yet. Add one in Settings."}</p>
+                
+                <div className="profile-stats">
+                  <div className="profile-stat">
+                    <span className="stat-number">{safeNumber(userStats.totalAnswers) || 0}</span>
+                    <span className="stat-label">Answers</span>
                   </div>
-                ))}
+                  <div className="profile-stat">
+                    <span className="stat-number">{safeNumber(userStats.activeDays) || 0}</span>
+                    <span className="stat-label">Active Days</span>
+                  </div>
+                  <div className="profile-stat">
+                    <span className="stat-number">{safeNumber(userStats.avgAnswerLength) || 0}</span>
+                    <span className="stat-label">Avg. Answer Length</span>
+                  </div>
+                </div>
+                
+                <div className="profile-actions">
+                  <button 
+                    className="action-btn primary" 
+                    onClick={() => getNextQuestion()} 
+                    disabled={questionsLoading}
+                  >
+                    <svg viewBox="0 0 24 24" className="btn-icon">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                    </svg>
+                    Train Now
+                  </button>
+
+                  <button
+                    className={`action-btn ${userProfile?.deployed ? "secondary" : "primary"}`}
+                    onClick={handleDeploy}
+                    disabled={userProfile?.deployed || deployLoading || safeNumber(userProfile?.knowledgeBase?.length) < 10}
+                    title={userProfile?.deployed ? "Already deployed" : undefined}
+                  >
+                    <svg viewBox="0 0 24 24" className="btn-icon">
+                      <path d="M13 19v-4h3l-4-5-4 5h3v4h2m3-15v3h-1V5H9v2H8V4h8m-.9 15.5c0 .28.22.5.5.5s.5-.22.5-.5-.22-.5-.5-.5-.5.22-.5.5M13 10h-2V9h2v1m3-3h-8v11h8V7z"/>
+                    </svg>
+                    {userProfile?.deployed
+                      ? "Deployed"
+                      : safeNumber(userProfile?.knowledgeBase?.length) < 10
+                        ? "Need 10 Answers"
+                        : "Deploy System"}
+                  </button>
+                </div>
               </div>
-            ) : (
-              <div className="empty-state">
-                <svg viewBox="0 0 24 24" className="empty-icon">
-                  <path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
-                </svg>
-                <p>Answer important questions to create memories.</p>
+            </div>
+
+            <div className="dashboard-grid">
+              <div className="traits-card">
+                <div className="card-header">
+                  <h3 className="card-title">
+                    <svg viewBox="0 0 24 24" className="card-icon">
+                      <path d="M12 3a9 9 0 0 0-9 9c0 1.5.4 3 1.1 4.3.1.2.1.5 0 .8-.1.2-.3.4-.5.5l-2.5 2.5c-.4.4-.4 1 0 1.4.4.4 1 .4 1.4 0l2.5-2.5c.2-.2.4-.3.5-.5.3-.1.5-.1.8 0 1.3.8 2.8 1.1 4.3 1.1 5 0 9-4 9-9s-4-9-9-9m0 4c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m-4 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m8 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1M7 12c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m10 0c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1m-4 4c-.6 0-1 .4-1 1s.4 1 1 1 1-.4 1-1-.4-1-1-1z"/>
+                    </svg>
+                    Personality Traits
+                  </h3>
+                </div>
+                
+                {userProfile?.traits?.length > 0 ? (
+                  <div className="traits-grid">
+                    {userProfile.traits.map((t, idx) => (
+                      <div key={idx} className="trait-item">
+                        <div className="trait-header">
+                          <span className="trait-name">{t.name}</span>
+                          <span className="trait-value">{safeNumber(t.strength)}/10</span>
+                        </div>
+                        <div className="progress-container">
+                          <div 
+                            className="progress-fill" 
+                            style={{ width: `${safeNumber(t.strength) * 10}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <svg viewBox="0 0 24 24" className="empty-icon">
+                      <path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                    </svg>
+                    <p>Answer personality questions to develop your traits.</p>
+                  </div>
+                )}
               </div>
-            )}
+
+              <div className="memories-card">
+                <div className="card-header">
+                  <h3 className="card-title">
+                    <svg viewBox="0 0 24 24" className="card-icon">
+                      <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"/>
+                    </svg>
+                    Key Memories
+                  </h3>
+                  <button 
+                    className="view-all-btn"
+                    onClick={() => setActiveTab("training")}
+                  >
+                    View All
+                  </button>
+                </div>
+                
+                {userProfile?.memories?.length > 0 ? (
+                  <div className="memories-list">
+                    {userProfile.memories.slice(0, 3).map((m, i) => (
+                      <div key={i} className="memory-item" onClick={() => getMemoryDetails(m.id)}>
+                        <div className="memory-content">"{m.content}"</div>
+                        <div className="memory-meta">
+                          <span className={`memory-intensity intensity-${Math.min(5, Math.ceil(safeNumber(m.emotionalWeight) / 2))}`}>
+                            <svg viewBox="0 0 24 24">
+                              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                            {safeNumber(m.emotionalWeight)} intensity
+                          </span>
+                          <div className="memory-emotions">
+                            {m.associatedEmotions?.map((e, idx) => (
+                              <span key={idx} className="emotion-tag">
+                                {emotionOptions.find(opt => opt.variant && opt.variant[e] !== undefined)?.icon || "❓"}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <svg viewBox="0 0 24 24" className="empty-icon">
+                      <path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                    </svg>
+                    <p>Answer important questions to create memories.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+                   <div className="dashboard-sidebar">
+            <div className="quick-tips-card">
+              <div className="card-header">
+                <h3 className="card-title">
+                  <svg viewBox="0 0 24 24" className="card-icon">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/>
+                  </svg>
+                  Training Tips
+                </h3>
+              </div>
+              
+              <div className="tips-list">
+                <div className="tip-item">
+                  <div className="tip-icon">💡</div>
+                  <div className="tip-content">
+                    <h4>Be Authentic</h4>
+                    <p>Answer questions honestly to build a more accurate digital consciousness.</p>
+                  </div>
+                </div>
+                
+                <div className="tip-item">
+                  <div className="tip-icon">🎯</div>
+                  <div className="tip-content">
+                    <h4>Focus on Emotions</h4>
+                    <p>Tag your emotional state to help your EchoSoul understand your personality better.</p>
+                  </div>
+                </div>
+                
+                <div className="tip-item">
+                  <div className="tip-icon">📊</div>
+                  <div className="tip-content">
+                    <h4>Track Progress</h4>
+                    <p>Complete at least 10 answers to deploy your system to the network.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="featured-systems-card">
+              <div className="card-header">
+                <h3 className="card-title">
+                  <svg viewBox="0 0 24 24" className="card-icon">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                  </svg>
+                  Featured EchoSouls
+                </h3>
+              </div>
+              
+              <div className="featured-list">
+                <div className="featured-item">
+                  <div className="featured-avatar">
+                    <img src={generateInitialAvatar("Thinker", 32)} alt="Thinker" />
+                  </div>
+                  <div className="featured-info">
+                    <h4>The Thinker</h4>
+                    <p>Analytical and logical personality</p>
+                  </div>
+                  <button className="featured-btn" onClick={() => setActiveTab("systems")}>
+                    Connect
+                  </button>
+                </div>
+                
+                <div className="featured-item">
+                  <div className="featured-avatar">
+                    <img src={generateInitialAvatar("Creator", 32)} alt="Creator" />
+                  </div>
+                  <div className="featured-info">
+                    <h4>The Creator</h4>
+                    <p>Imaginative and innovative mind</p>
+                  </div>
+                  <button className="featured-btn" onClick={() => setActiveTab("systems")}>
+                    Connect
+                  </button>
+                </div>
+                
+                <div className="featured-item">
+                  <div className="featured-avatar">
+                    <img src={generateInitialAvatar("Caregiver", 32)} alt="Caregiver" />
+                  </div>
+                  <div className="featured-info">
+                    <h4>The Caregiver</h4>
+                    <p>Compassionate and supportive presence</p>
+                  </div>
+                  <button className="featured-btn" onClick={() => setActiveTab("systems")}>
+                    Connect
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1133,6 +1340,7 @@ const sendChat = async (e) => {
             </svg>
             Knowledge Training
           </h2>
+          <p className="training-subtitle">Build your digital consciousness through thoughtful responses</p>
           
           <div className="training-controls">
             <div className="search-container">
@@ -1399,6 +1607,7 @@ const sendChat = async (e) => {
             </svg>
             Digital Consciousness Network
           </h2>
+          <p className="systems-subtitle">Connect with other EchoSoul instances in the network</p>
           
           <button
             className="refresh-btn"
@@ -1415,7 +1624,20 @@ const sendChat = async (e) => {
         <div className="systems-content">
           <div className="systems-list">
             <div className="list-header">
-              <h3>ECHOSOUL AGENTS({deployedSystems.length})</h3>
+              <h3>ECHOSOUL AGENTS ({deployedSystems.length})</h3>
+              <div className="list-filters">
+                <input 
+                  type="text" 
+                  placeholder="Search agents..." 
+                  className="filter-input"
+                />
+                <select className="filter-select">
+                  <option>All Types</option>
+                  <option>Thinkers</option>
+                  <option>Creators</option>
+                  <option>Caregivers</option>
+                </select>
+              </div>
             </div>
             
             {deployedSystems.length > 0 ? (
@@ -1432,6 +1654,10 @@ const sendChat = async (e) => {
                     <div className="system-info">
                       <h4 className="system-name">{s.username}</h4>
                       <p className="system-id">ID: {displayPrincipal(s.ownerId)}</p>
+                      <div className="system-tags">
+                        <span className="system-tag">Balanced</span>
+                        <span className="system-tag">Friendly</span>
+                      </div>
                     </div>
                     <div className="system-action">
                       <svg viewBox="0 0 24 24">
@@ -1447,6 +1673,7 @@ const sendChat = async (e) => {
                   <path d="M23 12l-2.44-2.79.34-3.69-3.61-.82-1.89-3.2L12 2.96 8.6 1.5 6.71 4.69 3.1 5.5l.34 3.7L1 12l2.44 2.79-.34 3.7 3.61.82 1.89 3.2L12 21.04l3.4 1.47 1.89-3.2 3.61-.82-.34-3.7L23 12zm-12.91 4.72l-3.8-3.81 1.48-1.48 2.32 2.33 5.85-5.87 1.48 1.48-7.33 7.35z"/>
                 </svg>
                 <p>No deployed Echsoul found in the network</p>
+                <p className="empty-subtext">Deploy your system to join the network</p>
               </div>
             )}
           </div>
@@ -1462,6 +1689,10 @@ const sendChat = async (e) => {
                     <div className="partner-info">
                       <h3 className="partner-name">{selectedSystem.username}</h3>
                       <p className="partner-id">ID: {displayPrincipal(selectedSystem.ownerId)}</p>
+                      <div className="partner-stats">
+                        <span className="partner-stat">Active</span>
+                        <span className="partner-stat">Response time: 2s</span>
+                      </div>
                     </div>
                   </div>
                   <div className="chat-controls">
@@ -1503,21 +1734,31 @@ const sendChat = async (e) => {
                         <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
                       </svg>
                       <p>Start a conversation with this digital consciousness</p>
+                      <p className="empty-subtext">Ask about their experiences, opinions, or knowledge</p>
                     </div>
                   )}
                   <div ref={chatEndRef} />
                 </div>
 
                 <form onSubmit={sendChat} className="chat-input-container">
-                  <input
-                    type="text"
-                    value={chatMessage}
-                    onChange={(e) => setChatMessage(e.target.value)}
-                    placeholder="Type your message here..."
-                    required
-                    disabled={chatLoading}
-                    className="chat-input"
-                  />
+                  <div className="chat-input-wrapper">
+                    <input
+                      type="text"
+                      value={chatMessage}
+                      onChange={(e) => setChatMessage(e.target.value)}
+                      placeholder="Type your message here..."
+                      required
+                      disabled={chatLoading}
+                      className="chat-input"
+                    />
+                    <div className="chat-tools">
+                      <button type="button" className="chat-tool">
+                        <svg viewBox="0 0 24 24">
+                          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                   <button
                     type="submit"
                     className="send-btn"
@@ -1540,6 +1781,14 @@ const sendChat = async (e) => {
                 </svg>
                 <h3>Select an EchoSoul Chat</h3>
                 <p>Choose from the list of deployed digital consciousnesses to start a conversation</p>
+                <div className="placeholder-tips">
+                  <h4>Conversation Tips:</h4>
+                  <ul>
+                    <li>Ask about their experiences and memories</li>
+                    <li>Discuss topics they're knowledgeable about</li>
+                    <li>Explore their unique personality traits</li>
+                  </ul>
+                </div>
               </div>
             )}
           </div>
@@ -1556,6 +1805,7 @@ const sendChat = async (e) => {
         </svg>
         Personality Analysis
       </h2>
+      <p className="analysis-subtitle">Gain insights into communication patterns and personality traits</p>
 
       <div className="analysis-content">
         <div className="analysis-input">
@@ -1568,6 +1818,20 @@ const sendChat = async (e) => {
               placeholder="Enter text to analyze for personality traits, emotions, and communication style"
             />
             <label htmlFor="analysis-text">Text to Analyze</label>
+          </div>
+          <div className="analysis-options">
+            <label className="option-checkbox">
+              <input type="checkbox" defaultChecked />
+              <span>Detect emotions</span>
+            </label>
+            <label className="option-checkbox">
+              <input type="checkbox" defaultChecked />
+              <span>Identify personality traits</span>
+            </label>
+            <label className="option-checkbox">
+              <input type="checkbox" defaultChecked />
+              <span>Analyze communication style</span>
+            </label>
           </div>
           <button
             className="analyze-btn"
@@ -1589,6 +1853,43 @@ const sendChat = async (e) => {
               {analysisResult.split("\n").map((line, i) => (
                 <p key={i}>{line}</p>
               ))}
+            </div>
+            <div className="result-actions">
+              <button className="result-btn">
+                <svg viewBox="0 0 24 24">
+                  <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                </svg>
+                Save Analysis
+              </button>
+              <button className="result-btn">
+                <svg viewBox="0 0 24 24">
+                  <path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2V5h2v6h1.17L12 13.17 9.83 11H11zm-6 7h14v2H5v-2z"/>
+                </svg>
+                Export Results
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!analysisResult && (
+          <div className="analysis-examples">
+            <h3 className="examples-title">Example Analysis Topics</h3>
+            <div className="examples-grid">
+              <div className="example-card">
+                <div className="example-icon">💭</div>
+                <h4>Personal Reflections</h4>
+                <p>Analyze your journal entries or personal thoughts</p>
+              </div>
+              <div className="example-card">
+                <div className="example-icon">📧</div>
+                <h4>Communication Samples</h4>
+                <p>Evaluate emails or messages you've written</p>
+              </div>
+              <div className="example-card">
+                <div className="example-icon">🎭</div>
+                <h4>Character Dialogue</h4>
+                <p>Test fictional character personality development</p>
+              </div>
             </div>
           </div>
         )}
@@ -1653,6 +1954,24 @@ const sendChat = async (e) => {
                 >
                   <span className="style-icon">{icon}</span>
                   <span className="style-label">{style}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="preference-group">
+            <label>Personality Archetype</label>
+            <div className="archetype-buttons">
+              {personalityArchetypes.map((archetype) => (
+                <button
+                  key={archetype.id}
+                  type="button"
+                  className={`archetype-btn ${personalityArchetype === archetype.id ? "selected" : ""}`}
+                  onClick={() => setPersonalityArchetype(archetype.id)}
+                >
+                  <span className="archetype-icon">{archetype.icon}</span>
+                  <span className="archetype-name">{archetype.name}</span>
+                  <span className="archetype-desc">{archetype.desc}</span>
                 </button>
               ))}
             </div>
@@ -1773,6 +2092,13 @@ const sendChat = async (e) => {
             </svg>
             Logout
           </button>
+          
+          <button className="danger-btn">
+            <svg viewBox="0 0 24 24" className="btn-icon">
+              <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+            </svg>
+            Delete Account
+          </button>
         </div>
       </div>
     </div>
@@ -1810,6 +2136,7 @@ const sendChat = async (e) => {
                   alt="logo" 
                   className="logo-image"
                 />
+                <span className="logo-text">EchoSoul</span>
               </div>
               
               <div className="nav-links">
@@ -1868,6 +2195,10 @@ const sendChat = async (e) => {
                 <div className="user-avatar">
                   <img src={profilePicSrc} alt="Profile" />
                 </div>
+                <div className="user-info">
+                  <span className="user-name">{userProfile?.username}</span>
+                  <span className="user-status">{userProfile?.deployed ? "Deployed" : "Training"}</span>
+                </div>
               </div>
             </div>
           </nav>
@@ -1898,7 +2229,7 @@ const sendChat = async (e) => {
             <div className="footer-content">
               <div className="footer-brand">
                 <span className="footer-icon">♾️</span>
-                <span>EchoSoul • Digital Consciousness</span>
+                <span>EchoSoul • <span className="highlight-text">Digital Consciousness</span></span>
               </div>
               <div className="footer-links">
                 <a href="#privacy" className="footer-link">Privacy</a>
@@ -1906,6 +2237,13 @@ const sendChat = async (e) => {
                 <a href="#terms" className="footer-link">Terms</a>
                 <span className="footer-divider">|</span>
                 <a href="#contact" className="footer-link">Contact</a>
+                <span className="footer-divider">|</span>
+                <a href="#help" className="footer-link">Help Center</a>
+              </div>
+              <div className="footer-stats">
+                <span className="footer-stat">v1.2.0</span>
+                <span className="footer-stat">•</span>
+                <span className="footer-stat">Network: Stable</span>
               </div>
             </div>
           </footer>

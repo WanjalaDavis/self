@@ -1,28 +1,39 @@
-// Variables
-$primary-color: #4a6bff;
-$primary-dark: #2a4bdf;
-$secondary-color: #6c757d;
-$success-color: #28a745;
-$danger-color: #dc3545;
-$warning-color: #ffc107;
-$info-color: #17a2b8;
-$light-color: #f8f9fa;
-$dark-color: #343a40;
-$white: #ffffff;
+// Vibrant Color Palette (No Blue/Purple)
+$primary-color: #FF6B35;        // Vibrant orange
+$primary-dark: #E85A2D;         // Darker orange
+$secondary-color: #00C9A7;      // Teal green
+$accent-color: #FF8066;         // Coral/salmon
+$success-color: #2ECC71;        // Fresh green
+$danger-color: #FF6B6B;         // Soft red
+$warning-color: #FFC145;        // Golden yellow
+$info-color: #48DBFB;           // Sky blue (not purple/blue)
+$light-color: #F8F9FA;
+$dark-color: #2D3436;
+$white: #FFFFFF;
 $black: #000000;
-$gray-100: #f8f9fa;
-$gray-200: #e9ecef;
-$gray-300: #dee2e6;
-$gray-400: #ced4da;
-$gray-500: #adb5bd;
-$gray-600: #6c757d;
+
+// Gradient colors
+$gradient-start: #FF9A8B;
+$gradient-end: #FF6B35;
+
+// Gray scale
+$gray-100: #faf9f8;
+$gray-200: #E9ECEF;
+$gray-300: #DEE2E6;
+$gray-400: #CED4DA;
+$gray-500: #ADB5BD;
+$gray-600: #6C757D;
 $gray-700: #495057;
-$gray-800: #343a40;
+$gray-800: #343A40;
 $gray-900: #212529;
 
-$border-radius: 0.5rem;
-$box-shadow: 0 0.5rem 1rem rgba($black, 0.15);
-$transition: all 0.3s ease;
+// Design variables
+$border-radius: 12px;
+$border-radius-lg: 16px;
+$border-radius-sm: 8px;
+$box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+$box-shadow-lg: 0 15px 40px rgba(0, 0, 0, 0.12);
+$transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 
 // Mixins
 @mixin flex-center {
@@ -39,11 +50,31 @@ $transition: all 0.3s ease;
 }
 
 @mixin glass-effect {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(191, 228, 90, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-radius: $border-radius;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: $box-shadow;
+}
+
+@mixin gradient-bg {
+  background: linear-gradient(135deg, $gradient-start 0%, $gradient-end 100%);
+}
+
+@mixin gradient-text {
+  background: linear-gradient(135deg, $gradient-start 0%, $gradient-end 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@mixin card-hover {
+  transition: $transition;
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: $box-shadow-lg;
+  }
 }
 
 // Base styles
@@ -59,17 +90,20 @@ html {
 }
 
 body {
-  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
   line-height: 1.6;
-  color: $gray-800;
-  background-color: $gray-100;
+  color: $dark-color;
+  background-color: #b1f06a;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.2;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  color: $dark-color;
 }
 
 a {
@@ -87,32 +121,276 @@ button {
   border: none;
   background: none;
   transition: $transition;
+  font-family: inherit;
 }
 
 input, textarea, select {
   font-family: inherit;
   font-size: inherit;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem 1rem;
   border: 1px solid $gray-300;
-  border-radius: $border-radius;
+  border-radius: $border-radius-sm;
   transition: $transition;
+  background: $white;
 
   &:focus {
     outline: none;
     border-color: $primary-color;
-    box-shadow: 0 0 0 0.2rem rgba($primary-color, 0.25);
+    box-shadow: 0 0 0 3px rgba($primary-color, 0.15);
   }
+}
+
+/* ==================== DASHBOARD ENHANCEMENTS ==================== */
+
+/* Training Tips Card */
+.quick-tips-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+  margin-bottom: 24px;
+}
+
+.quick-tips-card .card-header {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quick-tips-card .card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quick-tips-card .card-icon {
+  width: 20px;
+  height: 20px;
+  fill: #4a5568;
+}
+
+.tips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tip-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tip-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+}
+
+.tip-icon {
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(66, 153, 225, 0.1);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.tip-content h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0 0 4px 0;
+}
+
+.tip-content p {
+  font-size: 13px;
+  color: #718096;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Featured Systems Card */
+.featured-systems-card {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e2e8f0;
+}
+
+.featured-systems-card .card-header {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.featured-systems-card .card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.featured-systems-card .card-icon {
+  width: 20px;
+  height: 20px;
+  fill: #4a5568;
+}
+
+.featured-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.featured-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.featured-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+}
+
+.featured-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.featured-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.featured-info {
+  flex: 1;
+}
+
+.featured-info h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0 0 2px 0;
+}
+
+.featured-info p {
+  font-size: 12px;
+  color: #718096;
+  margin: 0;
+}
+
+.featured-btn {
+  background: #4299e1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.featured-btn:hover {
+  background: #3182ce;
+}
+
+/* Dashboard Sidebar Layout */
+.dashboard-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .dashboard-content {
+    flex-direction: column;
+  }
+  
+  .dashboard-sidebar {
+    width: 100%;
+    margin-top: 24px;
+  }
+}
+
+/* Animation enhancements */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tip-item, .featured-item {
+  animation: fadeInUp 0.4s ease forwards;
+}
+
+.tip-item:nth-child(1) { animation-delay: 0.1s; }
+.tip-item:nth-child(2) { animation-delay: 0.2s; }
+.tip-item:nth-child(3) { animation-delay: 0.3s; }
+
+.featured-item:nth-child(1) { animation-delay: 0.1s; }
+.featured-item:nth-child(2) { animation-delay: 0.2s; }
+.featured-item:nth-child(3) { animation-delay: 0.3s; }
+
+/* Empty state styling for consistency */
+.quick-tips-card .empty-state,
+.featured-systems-card .empty-state {
+  text-align: center;
+  padding: 30px 20px;
+}
+
+.quick-tips-card .empty-state p,
+.featured-systems-card .empty-state p {
+  color: #a0aec0;
+  font-size: 14px;
+  margin-top: 10px;
 }
 
 textarea {
   resize: vertical;
-  min-height: 100px;
+  min-height: 120px;
 }
 
 // Utility classes
-.text-center {
-  text-align: center;
-}
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
 
 .mt-1 { margin-top: 0.25rem; }
 .mt-2 { margin-top: 0.5rem; }
@@ -126,8 +404,10 @@ textarea {
 .mb-4 { margin-bottom: 1.5rem; }
 .mb-5 { margin-bottom: 3rem; }
 
-.hidden {
-  display: none !important;
+.hidden { display: none !important; }
+
+.gradient-text {
+  @include gradient-text;
 }
 
 // App container
@@ -136,6 +416,7 @@ textarea {
   display: flex;
   flex-direction: column;
   position: relative;
+  background-color: #FAFAFA;
 }
 
 // Loading overlay
@@ -145,7 +426,7 @@ textarea {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba($white, 0.9);
+  background-color: rgba($white, 0.95);
   z-index: 9999;
   @include flex-center;
   flex-direction: column;
@@ -160,12 +441,12 @@ textarea {
     margin-bottom: 1.5rem;
 
     .spinner-circle {
-      width: 50px;
-      height: 50px;
-      border: 5px solid rgba($primary-color, 0.2);
+      width: 60px;
+      height: 60px;
+      border: 4px solid rgba($primary-color, 0.2);
       border-top-color: $primary-color;
       border-radius: 50%;
-      animation: spin 1s linear infinite;
+      animation: spin 1s ease-in-out infinite;
       margin: 0 auto;
     }
   }
@@ -188,7 +469,7 @@ textarea {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, rgba($primary-color, 0.2), rgba($primary-dark, 0.1));
+  background: linear-gradient(135deg, rgba($primary-color, 0.15), rgba($secondary-color, 0.1));
   z-index: 1000;
   @include flex-center;
   padding: 1rem;
@@ -197,40 +478,52 @@ textarea {
 .auth-modal-glass {
   @include glass-effect;
   width: 100%;
-  max-width: 800px;
+  max-width: 420px;
   overflow: hidden;
-  box-shadow: $box-shadow;
+  box-shadow: $box-shadow-lg;
 }
 
 .auth-modal-content {
   display: flex;
   flex-direction: column;
-  background: rgba($white, 0.95);
+  background: $white;
   border-radius: $border-radius;
   overflow: hidden;
 }
 
 .auth-modal-header {
   padding: 2rem;
-  background: linear-gradient(135deg, $primary-color, $primary-dark);
+  @include gradient-bg;
   color: $white;
+  text-align: center;
 }
 
 .auth-logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
   margin-bottom: 1rem;
 
-  .auth-logo-image {
-    width: 80px;
-    height: auto;
+  .auth-logo-icon {
+    width: 60px;
+    height: 60px;
+    background: rgba($white, 0.2);
+    border-radius: 50%;
+    @include flex-center;
+    
+    svg {
+      width: 32px;
+      height: 32px;
+      fill: $white;
+    }
   }
 
   .auth-logo-text {
     h1 {
       font-size: 1.75rem;
       margin-bottom: 0.25rem;
+      color: $white;
     }
 
     .auth-subtitle {
@@ -246,7 +539,7 @@ textarea {
 
 .auth-tabs-header {
   display: flex;
-  border-bottom: 1px solid $gray-200;
+  border-bottom: 2px solid $gray-200;
   margin-bottom: 1.5rem;
 }
 
@@ -264,11 +557,12 @@ textarea {
     &::after {
       content: '';
       position: absolute;
-      bottom: -1px;
+      bottom: -2px;
       left: 0;
       right: 0;
-      height: 2px;
+      height: 3px;
       background: $primary-color;
+      border-radius: 3px 3px 0 0;
     }
   }
 }
@@ -289,13 +583,13 @@ textarea {
   &.floating {
     label {
       position: absolute;
-      top: 0.5rem;
-      left: 0.75rem;
+      top: 0.75rem;
+      left: 1rem;
       color: $gray-600;
       transition: $transition;
       pointer-events: none;
       background: $white;
-      padding: 0 0.25rem;
+      padding: 0 0.5rem;
     }
 
     input:focus + label,
@@ -303,38 +597,43 @@ textarea {
     textarea:focus + label,
     textarea:not(:placeholder-shown) + label {
       top: -0.5rem;
-      left: 0.5rem;
+      left: 0.75rem;
       font-size: 0.75rem;
       color: $primary-color;
+      font-weight: 600;
     }
 
     input, textarea {
       width: 100%;
-      padding: 0.75rem;
+      padding: 1rem;
+      border-radius: $border-radius-sm;
     }
   }
 }
 
 .auth-submit-btn {
-  background: linear-gradient(135deg, $primary-color, $primary-dark);
+  @include gradient-bg;
   color: $white;
-  padding: 0.75rem;
-  border-radius: $border-radius;
+  padding: 1rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   transition: $transition;
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 0.5rem;
+  font-size: 1rem;
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba($primary-color, 0.2);
+    box-shadow: 0 8px 20px rgba($primary-color, 0.3);
   }
 
   &:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 }
 
@@ -348,20 +647,23 @@ textarea {
 }
 
 .auth-message {
-  padding: 0.75rem;
-  border-radius: $border-radius;
+  padding: 0.875rem;
+  border-radius: $border-radius-sm;
   margin-top: 1rem;
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 
   &.success {
     background-color: rgba($success-color, 0.1);
-    color: darken($success-color, 10%);
+    color: adjust-color($success-color, $lightness: -20%);
     border: 1px solid rgba($success-color, 0.2);
   }
 
   &.error {
     background-color: rgba($danger-color, 0.1);
-    color: darken($danger-color, 10%);
+    color: adjust-color($danger-color, $lightness: -20%);
     border: 1px solid rgba($danger-color, 0.2);
   }
 }
@@ -374,13 +676,14 @@ textarea {
   bottom: 0;
   width: 80px;
   background: $white;
-  box-shadow: 2px 0 10px rgba($black, 0.1);
+  box-shadow: 4px 0 20px rgba($black, 0.08);
   z-index: 100;
   transition: $transition;
   overflow: hidden;
+  border-radius: 0 $border-radius-lg $border-radius-lg 0;
 
   &:hover {
-    width: 220px;
+    width: 240px;
 
     .nav-label {
       opacity: 1;
@@ -400,10 +703,28 @@ textarea {
   padding: 0 1rem 1.5rem;
   margin-bottom: 1rem;
   border-bottom: 1px solid $gray-200;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 
-  .logo-image {
-    width: 100%;
-    height: auto;
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    @include gradient-bg;
+    border-radius: 12px;
+    @include flex-center;
+    
+    svg {
+      width: 24px;
+      height: 24px;
+      fill: $white;
+    }
+  }
+
+  .logo-text {
+    font-weight: 700;
+    font-size: 1.25rem;
+    @include gradient-text;
   }
 }
 
@@ -419,20 +740,33 @@ textarea {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.75rem;
-  border-radius: $border-radius;
+  padding: 0.875rem;
+  border-radius: $border-radius-sm;
   color: $gray-600;
   transition: $transition;
+  position: relative;
 
   &:hover {
-    background-color: rgba($primary-color, 0.1);
+    background-color: rgba($primary-color, 0.08);
     color: $primary-color;
   }
 
   &.active {
-    background-color: rgba($primary-color, 0.2);
+    background-color: rgba($primary-color, 0.12);
     color: $primary-color;
     font-weight: 600;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 20px;
+      width: 4px;
+      background: $primary-color;
+      border-radius: 0 2px 2px 0;
+    }
   }
 
   .nav-icon {
@@ -461,6 +795,12 @@ textarea {
     border-radius: 50%;
     overflow: hidden;
     margin: 0 auto;
+    border: 2px solid $gray-200;
+    transition: $transition;
+
+    &:hover {
+      border-color: $primary-color;
+    }
 
     img {
       width: 100%;
@@ -475,17 +815,17 @@ textarea {
   margin-left: 80px;
   flex: 1;
   padding: 2rem;
-  background-color: $gray-100;
+  background-color: #FAFAFA;
   min-height: 100vh;
 }
 
 .global-message {
   position: fixed;
-  top: 1rem;
-  right: 1rem;
+  top: 1.5rem;
+  right: 1.5rem;
   max-width: 400px;
   z-index: 100;
-  box-shadow: $box-shadow;
+  box-shadow: $box-shadow-lg;
   border-radius: $border-radius;
   overflow: hidden;
   animation: slideIn 0.3s ease-out;
@@ -501,7 +841,7 @@ textarea {
   }
 
   .message-content {
-    padding: 1rem;
+    padding: 1rem 1.25rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -512,9 +852,12 @@ textarea {
     color: inherit;
     margin-left: 1rem;
     opacity: 0.8;
+    padding: 0.25rem;
+    border-radius: 50%;
 
     &:hover {
       opacity: 1;
+      background: rgba($white, 0.2);
     }
 
     svg {
@@ -527,11 +870,11 @@ textarea {
 
 @keyframes slideIn {
   from {
-    transform: translateY(-100%);
+    transform: translateX(100%);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: translateX(0);
     opacity: 1;
   }
 }
@@ -546,16 +889,16 @@ textarea {
   margin-bottom: 2rem;
 
   .dashboard-title {
-    font-size: 1.75rem;
-    color: $gray-800;
+    font-size: 1.875rem;
+    color: $dark-color;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.75rem;
 
     svg {
-      width: 32px;
-      height: 32px;
+      width: 36px;
+      height: 36px;
       fill: $primary-color;
     }
   }
@@ -563,7 +906,7 @@ textarea {
 
 .dashboard-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
@@ -577,45 +920,43 @@ textarea {
   display: flex;
   align-items: center;
   gap: 1rem;
-
-  &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba($black, 0.1);
-  }
+  border-left: 4px solid $primary-color;
+  @include card-hover;
 
   .stat-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
     @include flex-center;
 
     svg {
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
     }
 
     &.knowledge {
-      background: rgba($info-color, 0.1);
+      background: rgba($info-color, 0.15);
       svg { fill: $info-color; }
     }
 
     &.deployment {
-      background: rgba($success-color, 0.1);
+      background: rgba($success-color, 0.15);
       svg { fill: $success-color; }
     }
 
     &.progress {
-      background: rgba($warning-color, 0.1);
+      background: rgba($warning-color, 0.15);
       svg { fill: $warning-color; }
     }
   }
 
   .stat-content {
     .stat-value {
-      font-size: 1.5rem;
+      font-size: 1.75rem;
       font-weight: 700;
       display: block;
       line-height: 1.2;
+      color: $dark-color;
     }
 
     .stat-label {
@@ -634,6 +975,7 @@ textarea {
   display: flex;
   gap: 2rem;
   align-items: center;
+  @include card-hover;
 }
 
 .profile-avatar-container {
@@ -647,6 +989,7 @@ textarea {
   overflow: hidden;
   position: relative;
   border: 3px solid $primary-color;
+  box-shadow: 0 4px 12px rgba($primary-color, 0.2);
 
   .avatar-image {
     width: 100%;
@@ -665,6 +1008,7 @@ textarea {
     @include flex-center;
     cursor: pointer;
     transition: $transition;
+    box-shadow: 0 2px 8px rgba($black, 0.2);
 
     &:hover {
       background: $primary-dark;
@@ -689,11 +1033,13 @@ textarea {
   .profile-name {
     font-size: 1.5rem;
     margin-bottom: 0.5rem;
+    color: $dark-color;
   }
 
   .profile-bio {
     color: $gray-600;
     margin-bottom: 1rem;
+    line-height: 1.5;
   }
 }
 
@@ -703,22 +1049,22 @@ textarea {
 }
 
 .action-btn {
-  padding: 0.75rem 1.25rem;
-  border-radius: $border-radius;
+  padding: 0.75rem 1.5rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   transition: $transition;
+  font-size: 0.875rem;
 
   &.primary {
-    background: $primary-color;
+    @include gradient-bg;
     color: $white;
 
     &:hover {
-      background: $primary-dark;
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba($primary-color, 0.2);
+      box-shadow: 0 8px 20px rgba($primary-color, 0.3);
     }
   }
 
@@ -728,7 +1074,7 @@ textarea {
     border: 1px solid $primary-color;
 
     &:hover {
-      background: rgba($primary-color, 0.1);
+      background: rgba($primary-color, 0.08);
       transform: translateY(-2px);
     }
   }
@@ -761,7 +1107,8 @@ textarea {
   background: $white;
   border-radius: $border-radius;
   box-shadow: $box-shadow;
-  padding: 1.5rem;
+  padding: 1.75rem;
+  @include card-hover;
 }
 
 .card-header {
@@ -769,7 +1116,7 @@ textarea {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
+  padding-bottom: 0.875rem;
   border-bottom: 1px solid $gray-200;
 
   .card-title {
@@ -777,6 +1124,7 @@ textarea {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    color: $dark-color;
 
     .card-icon {
       width: 24px;
@@ -793,9 +1141,11 @@ textarea {
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    padding: 0.5rem;
+    border-radius: $border-radius-sm;
 
     &:hover {
-      text-decoration: underline;
+      background: rgba($primary-color, 0.08);
     }
   }
 }
@@ -815,10 +1165,12 @@ textarea {
 
     .trait-name {
       font-weight: 600;
+      color: $dark-color;
     }
 
     .trait-value {
-      color: $gray-600;
+      color: $primary-color;
+      font-weight: 600;
     }
   }
 }
@@ -832,7 +1184,7 @@ textarea {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, $primary-color, $primary-dark);
+  @include gradient-bg;
   border-radius: 4px;
   transition: width 0.5s ease;
 }
@@ -845,31 +1197,35 @@ textarea {
 
 .memory-item {
   background: $gray-100;
-  border-radius: $border-radius;
-  padding: 1rem;
+  border-radius: $border-radius-sm;
+  padding: 1.25rem;
   cursor: pointer;
   transition: $transition;
+  border-left: 3px solid transparent;
 
   &:hover {
     background: rgba($primary-color, 0.05);
     transform: translateY(-2px);
+    border-left-color: $primary-color;
   }
 
   .memory-content {
     font-style: italic;
-    color: $gray-700;
-    margin-bottom: 0.5rem;
+    color: $gray-800;
+    margin-bottom: 0.75rem;
     position: relative;
-    padding-left: 1rem;
+    padding-left: 1.25rem;
+    line-height: 1.5;
 
     &::before {
       content: '"';
       position: absolute;
       left: 0;
-      top: -0.5rem;
+      top: -0.25rem;
       font-size: 2rem;
-      color: $gray-300;
+      color: $gray-400;
       line-height: 1;
+      font-family: Georgia, serif;
     }
   }
 
@@ -901,37 +1257,44 @@ textarea {
 
   .memory-emotions {
     display: flex;
-    gap: 0.25rem;
+    gap: 0.375rem;
+    flex-wrap: wrap;
 
     .emotion-tag {
-      font-size: 0.875rem;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      background: rgba($primary-color, 0.1);
+      color: $primary-color;
+      border-radius: 1rem;
     }
   }
 }
 
 .empty-state {
-  padding: 2rem 1rem;
+  padding: 2.5rem 1rem;
   text-align: center;
   color: $gray-600;
 
   .empty-icon {
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
     margin-bottom: 1rem;
     fill: $gray-400;
   }
 
   p {
     margin-bottom: 1rem;
+    font-size: 1.125rem;
   }
 }
 
 .clear-filters-btn {
   background: $gray-200;
   color: $gray-700;
-  padding: 0.5rem 1rem;
-  border-radius: $border-radius;
+  padding: 0.625rem 1.25rem;
+  border-radius: $border-radius-sm;
   font-size: 0.875rem;
+  font-weight: 600;
   transition: $transition;
 
   &:hover {
@@ -950,6 +1313,7 @@ textarea {
   z-index: 1000;
   @include flex-center;
   padding: 1rem;
+  backdrop-filter: blur(4px);
 }
 
 .modal-content {
@@ -959,7 +1323,7 @@ textarea {
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: $box-shadow;
+  box-shadow: $box-shadow-lg;
   animation: fadeIn 0.3s ease-out;
 }
 
@@ -972,13 +1336,15 @@ textarea {
 
   h3 {
     margin-bottom: 0;
+    color: $dark-color;
   }
 
   .close-btn {
     background: none;
     color: $gray-600;
-    padding: 0.25rem;
+    padding: 0.5rem;
     border-radius: 50%;
+    transition: $transition;
 
     &:hover {
       background: $gray-200;
@@ -1002,6 +1368,7 @@ textarea {
     padding-left: 1.5rem;
     position: relative;
     font-style: italic;
+    line-height: 1.6;
 
     &::before {
       content: '"';
@@ -1011,6 +1378,7 @@ textarea {
       font-size: 3rem;
       color: $gray-300;
       line-height: 1;
+      font-family: Georgia, serif;
     }
   }
 
@@ -1022,6 +1390,10 @@ textarea {
   }
 
   .stat-item {
+    background: $gray-100;
+    padding: 1rem;
+    border-radius: $border-radius-sm;
+
     .stat-label {
       font-size: 0.875rem;
       color: $gray-600;
@@ -1031,6 +1403,7 @@ textarea {
 
     .stat-value {
       font-weight: 600;
+      color: $dark-color;
     }
   }
 
@@ -1038,6 +1411,7 @@ textarea {
     h4 {
       font-size: 1rem;
       margin-bottom: 0.75rem;
+      color: $dark-color;
     }
   }
 
@@ -1048,19 +1422,21 @@ textarea {
   }
 
   .emotion-tag {
-    background: $gray-100;
-    padding: 0.25rem 0.75rem;
+    background: rgba($primary-color, 0.1);
+    padding: 0.5rem 0.875rem;
     border-radius: 1rem;
     font-size: 0.875rem;
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    color: $primary-color;
+    font-weight: 500;
   }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 // Training tab styles
@@ -1074,7 +1450,7 @@ textarea {
 
   .training-title {
     font-size: 1.75rem;
-    color: $gray-800;
+    color: $dark-color;
     margin-bottom: 1.5rem;
     display: flex;
     align-items: center;
@@ -1093,6 +1469,7 @@ textarea {
   flex-wrap: wrap;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  align-items: center;
 }
 
 .search-container {
@@ -1102,18 +1479,20 @@ textarea {
 
   .search-icon {
     position: absolute;
-    left: 0.75rem;
+    left: 1rem;
     top: 50%;
     transform: translateY(-50%);
     width: 18px;
     height: 18px;
     fill: $gray-500;
+    z-index: 1;
   }
 
   .search-input {
     width: 100%;
-    padding-left: 2.5rem;
+    padding-left: 2.75rem;
     background: $white;
+    border-radius: $border-radius-sm;
   }
 }
 
@@ -1125,12 +1504,13 @@ textarea {
     width: 100%;
     appearance: none;
     background: $white;
-    padding-right: 2rem;
+    padding-right: 2.5rem;
+    border-radius: $border-radius-sm;
   }
 
   .select-arrow {
     position: absolute;
-    right: 0.75rem;
+    right: 1rem;
     top: 50%;
     transform: translateY(-50%);
     width: 16px;
@@ -1141,10 +1521,10 @@ textarea {
 }
 
 .random-question-btn {
-  background: $primary-color;
+  @include gradient-bg;
   color: $white;
-  padding: 0.75rem 1.25rem;
-  border-radius: $border-radius;
+  padding: 0.875rem 1.5rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1153,9 +1533,8 @@ textarea {
   white-space: nowrap;
 
   &:hover {
-    background: $primary-dark;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba($primary-color, 0.2);
+    box-shadow: 0 8px 20px rgba($primary-color, 0.3);
   }
 
   &:disabled {
@@ -1178,13 +1557,14 @@ textarea {
   .questions-header {
     font-size: 1.25rem;
     margin-bottom: 1rem;
-    color: $gray-700;
+    color: $dark-color;
+    font-weight: 600;
   }
 }
 
 .questions-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.5rem;
 }
 
@@ -1196,31 +1576,27 @@ textarea {
   transition: $transition;
   cursor: pointer;
   border-left: 4px solid transparent;
-
-  &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba($black, 0.1);
-    border-left-color: $primary-color;
-  }
+  @include card-hover;
 
   &.active {
     border-left-color: $primary-color;
-    box-shadow: 0 5px 15px rgba($primary-color, 0.2);
+    box-shadow: 0 8px 20px rgba($primary-color, 0.15);
   }
 
   .question-meta {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.875rem;
     font-size: 0.75rem;
   }
 
   .category-badge {
     background: rgba($primary-color, 0.1);
     color: $primary-color;
-    padding: 0.25rem 0.5rem;
+    padding: 0.375rem 0.75rem;
     border-radius: 1rem;
     font-weight: 600;
+    font-size: 0.75rem;
   }
 
   .importance-badge {
@@ -1233,19 +1609,20 @@ textarea {
   .question-text {
     font-weight: 500;
     margin-bottom: 1rem;
-    color: $gray-800;
+    color: $dark-color;
+    line-height: 1.5;
   }
 
   .question-triggers {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.25rem;
+    gap: 0.375rem;
     margin-bottom: 1rem;
   }
 
   .trigger-tag {
     background: $gray-100;
-    padding: 0.25rem 0.5rem;
+    padding: 0.375rem 0.75rem;
     border-radius: 1rem;
     font-size: 0.75rem;
     color: $gray-700;
@@ -1265,13 +1642,13 @@ textarea {
   .answer-btn {
     background: rgba($primary-color, 0.1);
     color: $primary-color;
-    padding: 0.5rem 1rem;
-    border-radius: $border-radius;
+    padding: 0.625rem 1.25rem;
+    border-radius: $border-radius-sm;
     font-size: 0.875rem;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.375rem;
     transition: $transition;
 
     &:hover {
@@ -1311,8 +1688,8 @@ textarea {
   }
 
   .submit-btn {
-    padding: 0.75rem 1.5rem;
-    border-radius: $border-radius;
+    padding: 0.875rem 1.5rem;
+    border-radius: $border-radius-sm;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -1320,13 +1697,12 @@ textarea {
     transition: $transition;
 
     &.primary {
-      background: $primary-color;
+      @include gradient-bg;
       color: $white;
 
       &:hover {
-        background: $primary-dark;
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba($primary-color, 0.2);
+        box-shadow: 0 8px 20px rgba($primary-color, 0.3);
       }
     }
 
@@ -1336,7 +1712,7 @@ textarea {
       border: 1px solid $primary-color;
 
       &:hover {
-        background: rgba($primary-color, 0.1);
+        background: rgba($primary-color, 0.08);
         transform: translateY(-2px);
       }
     }
@@ -1366,7 +1742,7 @@ textarea {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 600;
-    color: $gray-700;
+    color: $dark-color;
   }
 }
 
@@ -1379,8 +1755,8 @@ textarea {
 .emotion-btn {
   background: $gray-100;
   border: 1px solid $gray-200;
-  border-radius: $border-radius;
-  padding: 0.5rem 0.75rem;
+  border-radius: $border-radius-sm;
+  padding: 0.625rem 0.875rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1408,9 +1784,10 @@ textarea {
 .custom-question-card {
   background: $white;
   border-radius: $border-radius;
-  padding: 1.5rem;
+  padding: 1.75rem;
   box-shadow: $box-shadow;
   margin-top: 2rem;
+  @include card-hover;
 }
 
 .custom-question-header {
@@ -1419,12 +1796,13 @@ textarea {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  color: $dark-color;
 
   .header-icon {
     width: 24px;
     height: 24px;
     fill: $primary-color;
-  }
+    }
 }
 
 .custom-question-form {
@@ -1448,7 +1826,7 @@ textarea {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 600;
-  color: $gray-700;
+  color: $dark-color;
 }
 
 .importance-selector {
@@ -1460,10 +1838,10 @@ textarea {
 .importance-slider {
   flex: 1;
   height: 6px;
-  -webkit-appearance: none;
   background: $gray-200;
   border-radius: 3px;
   outline: none;
+  -webkit-appearance: none;
 
   &::-webkit-slider-thumb {
     -webkit-appearance: none;
@@ -1473,6 +1851,7 @@ textarea {
     border-radius: 50%;
     cursor: pointer;
     transition: $transition;
+    box-shadow: 0 2px 6px rgba($primary-color, 0.3);
   }
 
   &:hover::-webkit-slider-thumb {
@@ -1484,13 +1863,15 @@ textarea {
   width: 100px;
   display: flex;
   justify-content: center;
+  font-weight: 600;
+  color: $primary-color;
 }
 
 .add-question-btn {
-  background: $primary-color;
+  @include gradient-bg;
   color: $white;
-  padding: 0.75rem 1.5rem;
-  border-radius: $border-radius;
+  padding: 0.875rem 1.5rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   display: flex;
   justify-content: center;
@@ -1500,9 +1881,8 @@ textarea {
   margin-top: 0.5rem;
 
   &:hover {
-    background: $primary-dark;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba($primary-color, 0.2);
+    box-shadow: 0 8px 20px rgba($primary-color, 0.3);
   }
 
   &:disabled {
@@ -1527,7 +1907,7 @@ textarea {
 
   .systems-title {
     font-size: 1.75rem;
-    color: $gray-800;
+    color: $dark-color;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -1544,8 +1924,8 @@ textarea {
   background: $white;
   color: $primary-color;
   border: 1px solid $primary-color;
-  padding: 0.75rem 1.25rem;
-  border-radius: $border-radius;
+  padding: 0.875rem 1.5rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1553,7 +1933,7 @@ textarea {
   transition: $transition;
 
   &:hover {
-    background: rgba($primary-color, 0.1);
+    background: rgba($primary-color, 0.08);
     transform: translateY(-2px);
   }
 
@@ -1570,6 +1950,460 @@ textarea {
   }
 }
 
+// Additional styles for features in the React code
+
+// Dashboard sidebar components
+.dashboard-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.insights-card, .activity-card {
+  background: $white;
+  border-radius: $border-radius;
+  box-shadow: $box-shadow;
+  padding: 1.75rem;
+  @include card-hover;
+}
+
+.insights-list, .activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.insight-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba($info-color, 0.08);
+  border-radius: $border-radius-sm;
+  border-left: 3px solid $info-color;
+
+  .insight-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    color: $info-color;
+  }
+
+  .insight-content {
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: $gray-700;
+  }
+}
+
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  border-radius: $border-radius-sm;
+  transition: $transition;
+
+  &:hover {
+    background: $gray-100;
+  }
+
+  .activity-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+    color: $primary-color;
+  }
+
+  .activity-content {
+    flex: 1;
+
+    .activity-text {
+      font-size: 0.875rem;
+      margin-bottom: 0.25rem;
+      line-height: 1.3;
+      color: $gray-800;
+    }
+
+    .activity-time {
+      font-size: 0.75rem;
+      color: $gray-600;
+    }
+  }
+}
+
+// Profile stats in dashboard
+.profile-stats {
+  display: flex;
+  gap: 1.5rem;
+  margin: 1rem 0;
+
+  .profile-stat {
+    text-align: center;
+
+    .stat-number {
+      display: block;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: $primary-color;
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: $gray-600;
+      margin-top: 0.25rem;
+    }
+  }
+}
+
+// Emotion tags in memory details
+.emotion-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+
+  .emotion-tag {
+    background: rgba($primary-color, 0.1);
+    padding: 0.375rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: $transition;
+    color: $primary-color;
+    font-weight: 500;
+
+    &:hover {
+      background: rgba($primary-color, 0.2);
+    }
+  }
+}
+
+// Personality archetype buttons in settings
+.archetype-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem;
+}
+
+.archetype-btn {
+  background: $white;
+  border: 1px solid $gray-300;
+  border-radius: $border-radius;
+  padding: 1.25rem;
+  text-align: left;
+  transition: $transition;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  @include card-hover;
+
+  &:hover {
+    border-color: $primary-color;
+  }
+
+  &.selected {
+    background: rgba($primary-color, 0.1);
+    border-color: $primary-color;
+    box-shadow: 0 8px 20px rgba($primary-color, 0.1);
+  }
+
+  .archetype-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+    color: $primary-color;
+  }
+
+  .archetype-name {
+    font-weight: 600;
+    color: $dark-color;
+  }
+
+  .archetype-desc {
+    font-size: 0.75rem;
+    color: $gray-600;
+    line-height: 1.3;
+  }
+}
+
+// System tags in systems tab
+.system-tags {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+
+  .system-tag {
+    background: rgba($primary-color, 0.1);
+    color: $primary-color;
+    padding: 0.25rem 0.625rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+}
+
+// Partner stats in chat header
+.partner-stats {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+
+  .partner-stat {
+    font-size: 0.75rem;
+    color: $gray-600;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+
+    &::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: $success-color;
+      border-radius: 50%;
+      display: inline-block;
+    }
+  }
+}
+
+// Chat tools in input container
+.chat-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  .chat-tool {
+    background: none;
+    padding: 0.5rem;
+    border-radius: 50%;
+    transition: $transition;
+
+    &:hover {
+      background: $gray-200;
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+      fill: $gray-600;
+    }
+  }
+}
+
+// Analysis options
+.analysis-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.option-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: $gray-700;
+  cursor: pointer;
+
+  input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: $primary-color;
+  }
+}
+
+// Analysis examples grid
+.analysis-examples {
+  margin-top: 2rem;
+}
+
+.examples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.example-card {
+  background: $white;
+  border-radius: $border-radius;
+  padding: 1.5rem;
+  text-align: center;
+  transition: $transition;
+  box-shadow: $box-shadow;
+  @include card-hover;
+
+  .example-icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    color: $primary-color;
+  }
+
+  h4 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: $dark-color;
+  }
+
+  p {
+    font-size: 0.875rem;
+    color: $gray-600;
+    line-height: 1.4;
+  }
+}
+
+// Result actions in analysis
+.result-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.result-btn {
+  background: $white;
+  color: $primary-color;
+  border: 1px solid $primary-color;
+  padding: 0.625rem 1.25rem;
+  border-radius: $border-radius-sm;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: $transition;
+
+  &:hover {
+    background: rgba($primary-color, 0.08);
+  }
+
+  svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+  }
+}
+
+// Danger button in settings
+.danger-btn {
+  background: $white;
+  color: $danger-color;
+  border: 1px solid $danger-color;
+  padding: 0.875rem 1.5rem;
+  border-radius: $border-radius-sm;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: $transition;
+
+  &:hover {
+    background: rgba($danger-color, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .btn-icon {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+  }
+}
+
+// Highlight text utility
+.highlight-text {
+  color: $primary-color;
+  font-weight: 600;
+}
+
+// Empty subtext
+.empty-subtext {
+  font-size: 0.875rem;
+  color: $gray-500;
+  margin-top: 0.25rem;
+}
+
+// Placeholder tips in systems tab
+.placeholder-tips {
+  margin-top: 1.5rem;
+  text-align: left;
+
+  h4 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+    color: $gray-700;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+
+  li {
+    font-size: 0.875rem;
+    color: $gray-600;
+    margin-bottom: 0.5rem;
+    padding-left: 1rem;
+    position: relative;
+
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: $primary-color;
+      font-weight: bold;
+    }
+  }
+}
+
+// Responsive adjustments for new components
+@media (max-width: 768px) {
+  .dashboard-content {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-sidebar {
+    order: -1;
+  }
+
+  .archetype-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .examples-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .result-actions {
+    flex-direction: column;
+  }
+
+  .profile-stats {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+}
+
+// Animation for new components
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Apply animations to dynamic content
+.insight-item,
+.activity-item,
+.example-card {
+  animation: fadeInUp 0.3s ease-out;
+}
+
+
 .systems-content {
   display: grid;
   grid-template-columns: 1fr;
@@ -1584,18 +2418,19 @@ textarea {
   background: $white;
   border-radius: $border-radius;
   box-shadow: $box-shadow;
-  padding: 1.5rem;
+  padding: 1.75rem;
   height: fit-content;
+  @include card-hover;
 }
 
 .list-header {
   margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
+  padding-bottom: 0.875rem;
   border-bottom: 1px solid $gray-200;
 
   h3 {
     font-size: 1.25rem;
-    color: $gray-800;
+    color: $dark-color;
   }
 }
 
@@ -1610,17 +2445,19 @@ textarea {
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  border-radius: $border-radius;
+  border-radius: $border-radius-sm;
   transition: $transition;
   cursor: pointer;
+  border: 1px solid transparent;
 
   &:hover {
     background: rgba($primary-color, 0.05);
+    border-color: rgba($primary-color, 0.2);
   }
 
   &.active {
     background: rgba($primary-color, 0.1);
-    border-left: 3px solid $primary-color;
+    border-color: $primary-color;
   }
 
   .system-avatar {
@@ -1628,6 +2465,7 @@ textarea {
     height: 48px;
     border-radius: 50%;
     overflow: hidden;
+    border: 2px solid $gray-200;
 
     img {
       width: 100%;
@@ -1642,6 +2480,8 @@ textarea {
     .system-name {
       font-size: 1rem;
       margin-bottom: 0.25rem;
+      color: $dark-color;
+      font-weight: 600;
     }
 
     .system-id {
@@ -1655,6 +2495,11 @@ textarea {
       width: 20px;
       height: 20px;
       fill: $gray-500;
+      transition: $transition;
+    }
+    
+    &:hover svg {
+      fill: $primary-color;
     }
   }
 }
@@ -1667,6 +2512,7 @@ textarea {
   flex-direction: column;
   height: calc(100vh - 200px);
   min-height: 500px;
+  @include card-hover;
 }
 
 .chat-header {
@@ -1675,6 +2521,8 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: $gray-100;
+  border-radius: $border-radius $border-radius 0 0;
 }
 
 .chat-partner {
@@ -1687,6 +2535,7 @@ textarea {
     height: 48px;
     border-radius: 50%;
     overflow: hidden;
+    border: 2px solid $primary-color;
 
     img {
       width: 100%;
@@ -1698,6 +2547,8 @@ textarea {
   .partner-name {
     font-size: 1.25rem;
     margin-bottom: 0.25rem;
+    color: $dark-color;
+    font-weight: 600;
   }
 
   .partner-id {
@@ -1724,6 +2575,7 @@ textarea {
     width: 16px;
     height: 16px;
     cursor: pointer;
+    accent-color: $primary-color;
   }
 
   .switch-label {
@@ -1755,6 +2607,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  background: #FAFAFA;
 }
 
 .message {
@@ -1766,7 +2619,7 @@ textarea {
     justify-content: flex-end;
 
     .message-content {
-      background: $primary-color;
+      @include gradient-bg;
       color: $white;
       border-radius: 1rem 1rem 0 1rem;
     }
@@ -1777,20 +2630,23 @@ textarea {
     justify-content: flex-start;
 
     .message-content {
-      background: $gray-200;
-      color: $gray-800;
+      background: $white;
+      color: $dark-color;
       border-radius: 1rem 1rem 1rem 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
   }
 }
 
 .message-content {
-  padding: 0.75rem 1rem;
+  padding: 0.875rem 1.25rem;
   box-shadow: $box-shadow;
+  max-width: 100%;
 }
 
 .message-text {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
+  line-height: 1.4;
 }
 
 .message-time {
@@ -1808,8 +2664,8 @@ textarea {
   padding: 2rem;
 
   .empty-icon {
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
     margin-bottom: 1rem;
     fill: $gray-400;
   }
@@ -1817,50 +2673,57 @@ textarea {
   h3 {
     font-size: 1.25rem;
     margin-bottom: 0.5rem;
+    color: $dark-color;
   }
 
   p {
     max-width: 300px;
+    line-height: 1.5;
   }
 }
 
 .chat-input-container {
-  padding: 1rem;
+  padding: 1.25rem;
   border-top: 1px solid $gray-200;
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  background: $white;
+  border-radius: 0 0 $border-radius $border-radius;
 }
 
 .chat-input {
   flex: 1;
-  padding: 0.75rem 1rem;
+  padding: 0.875rem 1.25rem;
   border-radius: 2rem;
   border: 1px solid $gray-300;
   transition: $transition;
+  font-size: 0.875rem;
 
   &:focus {
     border-color: $primary-color;
-    box-shadow: 0 0 0 0.2rem rgba($primary-color, 0.1);
+    box-shadow: 0 0 0 3px rgba($primary-color, 0.1);
   }
 }
 
 .send-btn {
   width: 48px;
   height: 48px;
-  background: $primary-color;
+  @include gradient-bg;
   border-radius: 50%;
   @include flex-center;
   transition: $transition;
+  flex-shrink: 0;
 
   &:hover {
-    background: $primary-dark;
     transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba($primary-color, 0.3);
   }
 
   &:disabled {
     opacity: 0.7;
     cursor: not-allowed;
     transform: none !important;
+    box-shadow: none;
   }
 
   svg {
@@ -1879,8 +2742,8 @@ textarea {
   padding: 2rem;
 
   .placeholder-icon {
-    width: 64px;
-    height: 64px;
+    width: 72px;
+    height: 72px;
     margin-bottom: 1.5rem;
     fill: $gray-400;
   }
@@ -1888,10 +2751,12 @@ textarea {
   h3 {
     font-size: 1.5rem;
     margin-bottom: 0.5rem;
+    color: $dark-color;
   }
 
   p {
     max-width: 400px;
+    line-height: 1.5;
   }
 }
 
@@ -1903,7 +2768,7 @@ textarea {
 
 .analysis-title {
   font-size: 1.75rem;
-  color: $gray-800;
+  color: $dark-color;
   margin-bottom: 2rem;
   display: flex;
   align-items: center;
@@ -1921,6 +2786,7 @@ textarea {
   border-radius: $border-radius;
   box-shadow: $box-shadow;
   padding: 2rem;
+  @include card-hover;
 }
 
 .analysis-input {
@@ -1928,10 +2794,10 @@ textarea {
 }
 
 .analyze-btn {
-  background: $primary-color;
+  @include gradient-bg;
   color: $white;
-  padding: 0.75rem 1.5rem;
-  border-radius: $border-radius;
+  padding: 0.875rem 1.5rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -1940,9 +2806,8 @@ textarea {
   margin-top: 1rem;
 
   &:hover {
-    background: $primary-dark;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba($primary-color, 0.2);
+    box-shadow: 0 8px 20px rgba($primary-color, 0.3);
   }
 
   &:disabled {
@@ -1956,19 +2821,21 @@ textarea {
 .analysis-result {
   background: $gray-100;
   border-radius: $border-radius;
-  padding: 1.5rem;
+  padding: 1.75rem;
   border-left: 4px solid $primary-color;
 
   .result-title {
     font-size: 1.25rem;
     margin-bottom: 1rem;
     color: $primary-color;
+    font-weight: 600;
   }
 
   .result-content {
     p {
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.875rem;
       line-height: 1.6;
+      color: $gray-800;
 
       &:last-child {
         margin-bottom: 0;
@@ -1985,7 +2852,7 @@ textarea {
 
 .settings-title {
   font-size: 1.75rem;
-  color: $gray-800;
+  color: $dark-color;
   margin-bottom: 2rem;
   display: flex;
   align-items: center;
@@ -2003,6 +2870,7 @@ textarea {
   border-radius: $border-radius;
   box-shadow: $box-shadow;
   padding: 2rem;
+  @include card-hover;
 }
 
 .form-section {
@@ -2021,7 +2889,7 @@ textarea {
     display: block;
     margin-bottom: 1rem;
     font-weight: 600;
-    color: $gray-700;
+    color: $dark-color;
   }
 }
 
@@ -2038,6 +2906,7 @@ textarea {
   overflow: hidden;
   border: 3px solid $primary-color;
   margin: 0 auto;
+  box-shadow: 0 4px 12px rgba($primary-color, 0.2);
 
   .avatar-image {
     width: 100%;
@@ -2050,8 +2919,8 @@ textarea {
   background: $white;
   color: $primary-color;
   border: 1px solid $primary-color;
-  padding: 0.5rem 1rem;
-  border-radius: $border-radius;
+  padding: 0.625rem 1.25rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -2061,7 +2930,7 @@ textarea {
   cursor: pointer;
 
   &:hover {
-    background: rgba($primary-color, 0.1);
+    background: rgba($primary-color, 0.08);
   }
 
   input {
@@ -2092,7 +2961,7 @@ textarea {
   .section-title {
     font-size: 1.25rem;
     margin-bottom: 1.5rem;
-    color: $gray-800;
+    color: $dark-color;
     padding-bottom: 0.5rem;
     border-bottom: 1px solid $gray-200;
   }
@@ -2105,7 +2974,7 @@ textarea {
     display: block;
     margin-bottom: 0.75rem;
     font-weight: 600;
-    color: $gray-700;
+    color: $dark-color;
   }
 }
 
@@ -2118,8 +2987,8 @@ textarea {
 .style-btn {
   background: $white;
   border: 1px solid $gray-300;
-  border-radius: $border-radius;
-  padding: 0.5rem 1rem;
+  border-radius: $border-radius-sm;
+  padding: 0.625rem 1rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -2161,7 +3030,7 @@ textarea {
     display: block;
     margin-bottom: 0.75rem;
     font-weight: 600;
-    color: $gray-700;
+    color: $dark-color;
   }
 }
 
@@ -2169,11 +3038,11 @@ textarea {
   .depth-slider, .formality-slider {
     width: 100%;
     height: 6px;
-    -webkit-appearance: none;
     background: $gray-200;
     border-radius: 3px;
     outline: none;
     margin-bottom: 0.5rem;
+    // -webkit-appearance: none;
 
     &::-webkit-slider-thumb {
       -webkit-appearance: none;
@@ -2183,6 +3052,7 @@ textarea {
       border-radius: 50%;
       cursor: pointer;
       transition: $transition;
+      box-shadow: 0 2px 6px rgba($primary-color, 0.3);
     }
 
     &:hover::-webkit-slider-thumb {
@@ -2204,10 +3074,10 @@ textarea {
 }
 
 .save-btn {
-  background: $primary-color;
+  @include gradient-bg;
   color: $white;
-  padding: 0.75rem 1.5rem;
-  border-radius: $border-radius;
+  padding: 0.875rem 1.5rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -2215,9 +3085,8 @@ textarea {
   transition: $transition;
 
   &:hover {
-    background: $primary-dark;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba($primary-color, 0.2);
+    box-shadow: 0 8px 20px rgba($primary-color, 0.3);
   }
 
   &:disabled {
@@ -2234,11 +3103,12 @@ textarea {
   box-shadow: $box-shadow;
   padding: 2rem;
   margin-top: 2rem;
+  @include card-hover;
 
   .info-title {
     font-size: 1.25rem;
     margin-bottom: 1.5rem;
-    color: $gray-800;
+    color: $dark-color;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -2268,6 +3138,7 @@ textarea {
   .info-value {
     font-weight: 600;
     word-break: break-all;
+    color: $dark-color;
   }
 }
 
@@ -2278,6 +3149,7 @@ textarea {
   padding: 2rem;
   margin-top: 2rem;
   border: 1px solid rgba($danger-color, 0.2);
+  @include card-hover;
 }
 
 .danger-title {
@@ -2298,6 +3170,7 @@ textarea {
 .danger-warning {
   color: $gray-600;
   margin-bottom: 1.5rem;
+  line-height: 1.5;
 }
 
 .danger-actions {
@@ -2308,8 +3181,8 @@ textarea {
 .logout-btn {
   background: $danger-color;
   color: $white;
-  padding: 0.75rem 1.5rem;
-  border-radius: $border-radius;
+  padding: 0.875rem 1.5rem;
+  border-radius: $border-radius-sm;
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -2319,7 +3192,7 @@ textarea {
   &:hover {
     background: darken($danger-color, 10%);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba($danger-color, 0.2);
+    box-shadow: 0 8px 20px rgba($danger-color, 0.3);
   }
 
   .btn-icon {
@@ -2352,10 +3225,11 @@ textarea {
   align-items: center;
   gap: 0.5rem;
   font-weight: 600;
-  color: $gray-700;
+  color: $dark-color;
 
   .footer-icon {
     font-size: 1.25rem;
+    color: $primary-color;
   }
 }
 
@@ -2382,10 +3256,11 @@ textarea {
 // Responsive adjustments
 @media (max-width: 768px) {
   .floating-nav {
-    width: 60px;
+    width: 70px;
+    border-radius: 0;
 
     &:hover {
-      width: 60px;
+      width: 70px;
 
       .nav-label {
         opacity: 0;
@@ -2394,8 +3269,8 @@ textarea {
   }
 
   .app-main {
-    margin-left: 60px;
-    padding: 1rem;
+    margin-left: 70px;
+    padding: 1.25rem;
   }
 
   .profile-card {
@@ -2405,6 +3280,7 @@ textarea {
 
   .profile-actions {
     justify-content: center;
+    flex-wrap: wrap;
   }
 
   .systems-content {
@@ -2417,8 +3293,12 @@ textarea {
   }
 
   .app-footer {
-    margin-left: 60px;
+    margin-left: 70px;
     justify-content: center;
     text-align: center;
+  }
+  
+  .footer-content {
+    flex-direction: column;
   }
 }

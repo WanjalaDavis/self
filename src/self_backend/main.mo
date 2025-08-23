@@ -41,6 +41,10 @@ persistent actor UserSystem {
         #neutral : Text; // "😐"
         #excited : Text; // "🤩"
         #confused : Text; // "😕"
+        #anxious : Text; // "😮"
+        #greatful : Text; // "😲"
+        #proud : Text; // "😮"
+
     };
 
     public type CommunicationStyle = { #formal; #casual; #technical; #humorous; #empathetic; #balanced };
@@ -254,6 +258,9 @@ persistent actor UserSystem {
         emojiMap.put("😐", #neutral "😐");
         emojiMap.put("🤩", #excited "🤩");
         emojiMap.put("😕", #confused "😕");
+        emojiMap.put("😮", #anxious "😮");
+        emojiMap.put("😲", #greatful "😲");
+        emojiMap.put("😮", #proud "😮");
     };
 
     // ========== SYSTEM FUNCTIONS ==========
@@ -1346,6 +1353,9 @@ public shared (_msg) func chatWithSystem(
             case (?#excited emoji) { emoji # " " # formalityAdjusted };
             case (?#neutral emoji) { emoji # " " # formalityAdjusted };
             case (?#confused emoji) { emoji # " " # formalityAdjusted };
+            case (?#anxious emoji) { emoji # " " # formalityAdjusted };
+            case (?#greatful emoji) { emoji # " " # formalityAdjusted };
+            case (?#proud emoji) { emoji # " " # formalityAdjusted };
             case null { formalityAdjusted };
         }
     };
@@ -1372,6 +1382,9 @@ public shared (_msg) func chatWithSystem(
             case (?#excited emoji) { "excited " # emoji };
             case (?#confused emoji) { "confused " # emoji };
             case null { "unknown" };
+            case (?#anxious emoji) { "anxious " # emoji };
+            case (?#greatful emoji) { "grateful " # emoji };
+            case (?#proud emoji) { "proud " # emoji};
         }
     };
 
@@ -1383,6 +1396,7 @@ public shared (_msg) func chatWithSystem(
             case (#humorous) { "humorous" };
             case (#empathetic) { "empathetic" };
             case (#balanced) { "balanced" };
+            
         }
     };
 
